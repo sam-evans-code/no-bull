@@ -333,4 +333,4 @@ These are the primary sources underpinning the pipeline design decisions in Sect
 
 *Claude Code: append a brief entry here after each session ships, noting session number, date, and a one-line summary of what was actually delivered (especially if it deviated from this spec — note the deviation and reason).*
 
-(empty — no sessions shipped yet)
+**Session 1 — 2026-06-18:** Shipped as scoped. Scaffolded with `create-next-app` (TypeScript, Tailwind, App Router, ESLint), built the placeholder page shell (branding header, disabled input box, empty results placeholder), pushed to `github.com/sam-evans-code/no-bull`, and connected the repo to Vercel with `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` placeholder env vars. Public URL confirmed live (HTTP 200, correct branding/copy): https://no-bull-xi.vercel.app. One incidental fix: added `turbopack.root` to `next.config.ts` to silence a workspace-root warning caused by a stray lockfile in the parent home directory.
