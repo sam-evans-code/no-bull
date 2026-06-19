@@ -7,8 +7,11 @@ const EXTRACTION_MODEL = "gpt-5.4-nano";
 const RESEARCH_MODEL = "gpt-5.4-mini";
 const CLASSIFICATION_MODEL = "gpt-5.4-nano";
 
-// Keep Stage 5 well under Vercel's 60s maxDuration ceiling — see CLAUDE.md Session 7 log.
-const MAX_CLAIMS = 3;
+// Caps the per-job fan-out of parallel research+classify chains in runFactCheck. Each
+// chain is independently bounded by its own timeouts, and fact-check runs as its own
+// serverless invocation decoupled from the other stages' time budget — this number is
+// about concurrent-request/rate-limit exposure against the OpenAI key, not maxDuration.
+const MAX_CLAIMS = 5;
 
 const ERROR_MESSAGE =
   "Something went wrong checking the claims in this analysis — please try again.";
@@ -97,7 +100,7 @@ const EXTRACT_CLAIMS_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctionTool = 
           type: "array",
           items: { type: "string" },
           description:
-            "Zero or more atomic factual claims, each a single self-contained proposition restating only what the source text asserts (no added detail, no paraphrasing beyond minimal grammatical cleanup). Do not include subjective judgments (e.g. 'this is a good pricing strategy'), predictions, or strategic recommendations — those must be omitted entirely, not included with a caveat.",
+            "Zero or more atomic factual claims, each a single self-contained proposition restating only what the source text asserts (no added detail, no paraphrasing beyond minimal grammatical cleanup). Do not include subjective judgments (e.g. 'this is a good pricing strategy'), predictions, or strategic recommendations — those must be omitted entirely, not included with a caveat. Order the array by importance, most important claim first: a claim is more important the more it would undermine the argument it appears in if it turned out to be false.",
         },
       },
       required: ["claims"],
@@ -110,7 +113,11 @@ const EXTRACT_CLAIMS_SYSTEM_PROMPT = `You are a claim-extraction tool. You will 
 
 A claim is checkable only if it asserts something verifiable against external reality (a statistic, a market size figure, a named competitor's documented action, a regulatory requirement, a historical event or date). A claim is NOT checkable if it is a subjective judgment, a strategic opinion, a recommendation, or a prediction about the future — exclude these entirely, do not include them with a caveat or hedge.
 
-One proposition per claim. Do not paraphrase beyond minimal grammatical cleanup needed to make the claim stand alone. It is correct and expected to return zero claims if the text contains no checkable factual claims.`;
+One proposition per claim. Do not paraphrase beyond minimal grammatical cleanup needed to make the claim stand alone.
+
+Order the claims array by importance, most important first. A claim's importance is how much it would undermine the stress-test's conclusion or the devil's-advocate case if it turned out to be false — i.e. how central it is to the argument it supports. Only a limited number of claims at the front of this list will actually get checked, so the most decision-critical, highest-impact-if-wrong claims must come first.
+
+It is correct and expected to return zero claims if the text contains no checkable factual claims.`;
 
 const CLASSIFY_CLAIM_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
   type: "function",
@@ -150,15 +157,20 @@ async function extractClaims(
   stressTest: StressTestInput,
   devilsAdvocateCase: DevilsAdvocateCase
 ): Promise<string[]> {
-  const completion = await openai.chat.completions.create({
-    model: EXTRACTION_MODEL,
-    messages: [
-      { role: "system", content: EXTRACT_CLAIMS_SYSTEM_PROMPT },
-      { role: "user", content: buildClaimSourceText(stressTest, devilsAdvocateCase) },
-    ],
-    tools: [EXTRACT_CLAIMS_TOOL],
-    tool_choice: { type: "function", function: { name: EXTRACT_CLAIMS_TOOL.function.name } },
-  });
+  const completion = await openai.chat.completions.create(
+    {
+      model: EXTRACTION_MODEL,
+      messages: [
+        { role: "system", content: EXTRACT_CLAIMS_SYSTEM_PROMPT },
+        { role: "user", content: buildClaimSourceText(stressTest, devilsAdvocateCase) },
+      ],
+      tools: [EXTRACT_CLAIMS_TOOL],
+      tool_choice: { type: "function", function: { name: EXTRACT_CLAIMS_TOOL.function.name } },
+    },
+    // maxRetries: 0 because the SDK retries timeouts by default, which would silently
+    // double this call's worst-case wait — same convention as researchClaim/classifyClaim below.
+    { timeout: 25_000, maxRetries: 0 }
+  );
 
   if (completion.usage) {
     console.log(
