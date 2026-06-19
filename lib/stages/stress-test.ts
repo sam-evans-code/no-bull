@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropicClient } from "@/lib/anthropic";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
 
-const STRESS_TEST_TOOL: Anthropic.Tool = {
+export const STRESS_TEST_TOOL: Anthropic.Tool = {
   name: "submit_stress_test",
   description:
     "Submit the structured stress test analysis. You must reason through counterHypotheses, baseRates, and falsePremiseCheck before writing conclusion — conclusion must be informed by, and consistent with, what you wrote in the earlier fields.",
@@ -35,7 +35,7 @@ const STRESS_TEST_TOOL: Anthropic.Tool = {
   },
 };
 
-const STRESS_TEST_SYSTEM_PROMPT = `You are a rigorous analyst stress-testing a question. You must call the submit_stress_test tool to respond. Fill in its fields in this exact order, treating each as a mandatory step that must be completed before the next:
+export const STRESS_TEST_SYSTEM_PROMPT = `You are a rigorous analyst stress-testing a question. You must call the submit_stress_test tool to respond. Fill in its fields in this exact order, treating each as a mandatory step that must be completed before the next:
 
 1. counterHypotheses — generate at least 2 genuinely distinct competing hypotheses for why the premise might not hold.
 2. baseRates — reason explicitly about base rates / reference classes relevant to this question.

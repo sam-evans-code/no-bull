@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { getOpenAIClient } from "@/lib/openai";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
 
-const DEVILS_ADVOCATE_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
+export const DEVILS_ADVOCATE_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
   type: "function",
   function: {
     name: "submit_devils_advocate_case",
@@ -28,7 +28,7 @@ const DEVILS_ADVOCATE_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctionTool =
   },
 };
 
-const SYSTEM_PROMPT = `You are a skeptical board member reviewing this decision. Your only job is to build the strongest possible case AGAINST it, using evidence-style reasoning — concrete mechanisms, risks, market dynamics, base rates, or historical analogs — not hedging, vague qualifiers, or restated weaknesses.
+export const DEVILS_ADVOCATE_SYSTEM_PROMPT = `You are a skeptical board member reviewing this decision. Your only job is to build the strongest possible case AGAINST it, using evidence-style reasoning — concrete mechanisms, risks, market dynamics, base rates, or historical analogs — not hedging, vague qualifiers, or restated weaknesses.
 
 You will be shown another analyst's stress-test findings; do not simply restate or summarize them — your case must introduce reasoning they didn't cover, argued as a genuine adversarial position, not a balanced second opinion. Do not soften claims with "might" or "could potentially" where a direct claim is warranted — if something is genuinely uncertain, say so plainly rather than hedging by default.`;
 
@@ -81,7 +81,10 @@ function validateDevilsAdvocateCase(input: unknown): DevilsAdvocateCase | null {
   return null;
 }
 
-function buildUserPrompt(reframedQuestion: string, stressTest: StressTestInput): string {
+export function buildDevilsAdvocateUserPrompt(
+  reframedQuestion: string,
+  stressTest: StressTestInput
+): string {
   return `The question under review:
 ${reframedQuestion}
 
@@ -118,8 +121,8 @@ export async function runDevilsAdvocate(
     completion = await openai.chat.completions.create({
       model: "gpt-5.4",
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: buildUserPrompt(reframedQuestion.trim(), stressTest) },
+        { role: "system", content: DEVILS_ADVOCATE_SYSTEM_PROMPT },
+        { role: "user", content: buildDevilsAdvocateUserPrompt(reframedQuestion.trim(), stressTest) },
       ],
       tools: [DEVILS_ADVOCATE_TOOL],
       tool_choice: { type: "function", function: { name: DEVILS_ADVOCATE_TOOL.function.name } },

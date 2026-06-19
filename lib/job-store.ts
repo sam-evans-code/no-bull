@@ -2,7 +2,8 @@ import { kv } from "@vercel/kv";
 import type { StressTestInput } from "@/lib/stages/stress-test";
 import type { CounterEvidenceInput } from "@/lib/stages/could-be-wrong";
 import type { DevilsAdvocateCase } from "@/lib/stages/devils-advocate";
-import type { FactCheckEntry } from "@/lib/stages/fact-check";
+import type { ExtractedClaim, FactCheckEntry } from "@/lib/stages/fact-check";
+import type { NarrativeCorrection } from "@/lib/stages/narrative-correction";
 
 export type StageName =
   | "reframe"
@@ -10,7 +11,8 @@ export type StageName =
   | "could-be-wrong"
   | "devils-advocate"
   | "fact-check-extract"
-  | "fact-check";
+  | "fact-check"
+  | "narrative-correction";
 export type JobStatus = "pending" | "running" | "complete" | "failed";
 
 export interface JobResults {
@@ -21,8 +23,12 @@ export interface JobResults {
   // Output of fact-check-extract, input to fact-check. Can legitimately be `[]` (no
   // checkable claims found) — that's still "done", and `!results.factCheckClaims` below
   // already treats an empty array as truthy/present, which is correct; don't "fix" it.
-  factCheckClaims?: string[];
+  factCheckClaims?: ExtractedClaim[];
   factCheck?: FactCheckEntry[];
+  // Output of narrative-correction. Can legitimately be `[]` (no claim came back
+  // CONTRADICTED, so nothing needed rewriting) — same "empty array still counts as done"
+  // convention as factCheckClaims above.
+  narrativeCorrections?: NarrativeCorrection[];
 }
 
 export interface JobState {
@@ -57,6 +63,7 @@ export const STAGE_ORDER: StageName[] = [
   "devils-advocate",
   "fact-check-extract",
   "fact-check",
+  "narrative-correction",
 ];
 
 // Same comparison basis as STALE_THRESHOLD_MS's "slowest measured single stage" note, but
@@ -98,6 +105,7 @@ export function getNextStageToRun(results: JobResults): StageName | null {
   if (!results.devilsAdvocateCase) return "devils-advocate";
   if (!results.factCheckClaims) return "fact-check-extract";
   if (!results.factCheck) return "fact-check";
+  if (!results.narrativeCorrections) return "narrative-correction";
   return null;
 }
 

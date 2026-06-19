@@ -1,4 +1,4 @@
-import type { JobResults, Verdict } from "@/lib/types/job";
+import type { JobResults, NarrativeCorrection, SourceStage, Verdict } from "@/lib/types/job";
 
 const VERDICT_DISPLAY: Record<Verdict, { icon: string; label: string }> = {
   ENTAILED: { icon: "✅", label: "ENTAILED" },
@@ -6,11 +6,72 @@ const VERDICT_DISPLAY: Record<Verdict, { icon: string; label: string }> = {
   UNVERIFIABLE: { icon: "❓", label: "UNVERIFIABLE" },
 };
 
+const SECTION_NAMES: Record<SourceStage, string> = {
+  "stress-test": "Stress Test",
+  "devils-advocate": "Strongest Case Against It",
+};
+
 interface ResultsViewProps {
   results: JobResults;
 }
 
+function findCorrection<S extends SourceStage>(
+  corrections: NarrativeCorrection[] | undefined,
+  stage: S
+): Extract<NarrativeCorrection, { stage: S }> | undefined {
+  return corrections?.find(
+    (c): c is Extract<NarrativeCorrection, { stage: S }> => c.stage === stage
+  );
+}
+
+function RevisionBanner({ triggeringClaims }: { triggeringClaims: string[] }) {
+  return (
+    <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+      <p className="font-medium">
+        ⚠ This section was revised — fact-checking found the following claim(s) to be
+        false:
+      </p>
+      <ul className="list-disc pl-5">
+        {triggeringClaims.map((claim, i) => (
+          <li key={i}>{claim}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function UnverifiableNote({ claims }: { claims: string[] }) {
+  if (claims.length === 0) return null;
+  return (
+    <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
+      <p>
+        ❓ The following claim(s) in this section could not be confirmed or denied via web
+        search — that&apos;s not the same as being false:
+      </p>
+      <ul className="list-disc pl-5">
+        {claims.map((claim, i) => (
+          <li key={i}>{claim}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function ResultsView({ results }: ResultsViewProps) {
+  const stressTestCorrection = findCorrection(results.narrativeCorrections, "stress-test");
+  const devilsAdvocateCorrection = findCorrection(
+    results.narrativeCorrections,
+    "devils-advocate"
+  );
+
+  const stressTest = stressTestCorrection?.revised ?? results.stressTest;
+  const devilsAdvocateCase = devilsAdvocateCorrection?.revised ?? results.devilsAdvocateCase;
+
+  const unverifiableByStage = (stage: SourceStage): string[] =>
+    (results.factCheck ?? [])
+      .filter((entry) => entry.originStage === stage && entry.verdict === "UNVERIFIABLE")
+      .map((entry) => entry.claim);
+
   return (
     <div className="flex flex-col gap-6">
       {results.reframedQuestion && (
@@ -22,21 +83,25 @@ export default function ResultsView({ results }: ResultsViewProps) {
         </section>
       )}
 
-      {results.stressTest && (
+      {stressTest && (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
             The Stress Test
           </h2>
+          {stressTestCorrection && (
+            <RevisionBanner triggeringClaims={stressTestCorrection.triggeringClaims} />
+          )}
           <div className="flex flex-col gap-3 text-base text-zinc-900">
             <ul className="list-disc pl-5">
-              {results.stressTest.counterHypotheses.map((item, i) => (
+              {stressTest.counterHypotheses.map((item, i) => (
                 <li key={i}>{item}</li>
               ))}
             </ul>
-            <p>{results.stressTest.baseRates}</p>
-            <p>{results.stressTest.falsePremiseCheck}</p>
-            <p className="font-medium">{results.stressTest.conclusion}</p>
+            <p>{stressTest.baseRates}</p>
+            <p>{stressTest.falsePremiseCheck}</p>
+            <p className="font-medium">{stressTest.conclusion}</p>
           </div>
+          <UnverifiableNote claims={unverifiableByStage("stress-test")} />
         </section>
       )}
 
@@ -53,19 +118,21 @@ export default function ResultsView({ results }: ResultsViewProps) {
         </section>
       )}
 
-      {results.devilsAdvocateCase && (
+      {devilsAdvocateCase && (
         <section className="flex flex-col gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-4">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
             The Strongest Case Against It
           </h2>
+          {devilsAdvocateCorrection && (
+            <RevisionBanner triggeringClaims={devilsAdvocateCorrection.triggeringClaims} />
+          )}
           <ul className="list-disc pl-5 text-base text-zinc-900">
-            {results.devilsAdvocateCase.keyArguments.map((item, i) => (
+            {devilsAdvocateCase.keyArguments.map((item, i) => (
               <li key={i}>{item}</li>
             ))}
           </ul>
-          <p className="font-medium text-zinc-900">
-            {results.devilsAdvocateCase.conclusion}
-          </p>
+          <p className="font-medium text-zinc-900">{devilsAdvocateCase.conclusion}</p>
+          <UnverifiableNote claims={unverifiableByStage("devils-advocate")} />
         </section>
       )}
 
@@ -85,6 +152,7 @@ export default function ResultsView({ results }: ResultsViewProps) {
                 <tr className="border-b border-zinc-200 text-left text-zinc-500">
                   <th className="py-2 pr-4 font-medium">Claim</th>
                   <th className="py-2 pr-4 font-medium">Verdict</th>
+                  <th className="py-2 pr-4 font-medium">Impact if false</th>
                   <th className="py-2 font-medium">Source</th>
                 </tr>
               </thead>
@@ -96,6 +164,15 @@ export default function ResultsView({ results }: ResultsViewProps) {
                       <td className="py-2 pr-4 text-zinc-900">{entry.claim}</td>
                       <td className="py-2 pr-4 whitespace-nowrap">
                         {verdict.icon} {verdict.label}
+                        {entry.verdict === "CONTRADICTED" && (
+                          <p className="mt-1 text-xs font-normal text-amber-700">
+                            → caused the {SECTION_NAMES[entry.originStage]} section to be
+                            revised
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 whitespace-nowrap text-zinc-600">
+                        {entry.importanceScore}/100
                       </td>
                       <td className="py-2">
                         {entry.source ? (

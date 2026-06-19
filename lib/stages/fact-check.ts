@@ -28,12 +28,25 @@ export interface DevilsAdvocateCase {
   conclusion: string;
 }
 
+export type SourceStage = "stress-test" | "devils-advocate";
+
 type Verdict = "ENTAILED" | "CONTRADICTED" | "UNVERIFIABLE";
+
+// Output of extraction, input to verification. importanceScore/sourceStage are carried
+// through unchanged into FactCheckEntry below — selection uses importanceScore, but the
+// score and provenance are also surfaced to the end user, not discarded after selection.
+export interface ExtractedClaim {
+  claim: string;
+  sourceStage: SourceStage;
+  importanceScore: number;
+}
 
 export interface FactCheckEntry {
   claim: string;
   verdict: Verdict;
   source: string | null;
+  originStage: SourceStage;
+  importanceScore: number;
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -48,8 +61,25 @@ function isStringArray(value: unknown, minLength: number): value is string[] {
   );
 }
 
-function isStringArrayAllowEmpty(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => isNonEmptyString(item));
+function isSourceStage(value: unknown): value is SourceStage {
+  return value === "stress-test" || value === "devils-advocate";
+}
+
+function isExtractedClaim(value: unknown): value is ExtractedClaim {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    isNonEmptyString(candidate.claim) &&
+    isSourceStage(candidate.sourceStage) &&
+    typeof candidate.importanceScore === "number" &&
+    Number.isFinite(candidate.importanceScore) &&
+    candidate.importanceScore >= 0 &&
+    candidate.importanceScore <= 100
+  );
+}
+
+function isExtractedClaimArrayAllowEmpty(value: unknown): value is ExtractedClaim[] {
+  return Array.isArray(value) && value.every(isExtractedClaim);
 }
 
 function validateStressTestInput(input: unknown): StressTestInput | null {
@@ -79,12 +109,15 @@ function buildClaimSourceText(
   stressTest: StressTestInput,
   devilsAdvocateCase: DevilsAdvocateCase
 ): string {
-  return `Counter-hypotheses: ${stressTest.counterHypotheses.join(" | ")}
+  return `STRESS-TEST SECTION:
+Counter-hypotheses: ${stressTest.counterHypotheses.join(" | ")}
 Base rates: ${stressTest.baseRates}
 False-premise check: ${stressTest.falsePremiseCheck}
-Stress-test conclusion: ${stressTest.conclusion}
-Devil's-advocate key arguments: ${devilsAdvocateCase.keyArguments.join(" | ")}
-Devil's-advocate conclusion: ${devilsAdvocateCase.conclusion}`;
+Conclusion: ${stressTest.conclusion}
+
+DEVIL'S-ADVOCATE SECTION:
+Key arguments: ${devilsAdvocateCase.keyArguments.join(" | ")}
+Conclusion: ${devilsAdvocateCase.conclusion}`;
 }
 
 const EXTRACT_CLAIMS_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
@@ -98,9 +131,33 @@ const EXTRACT_CLAIMS_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctionTool = 
       properties: {
         claims: {
           type: "array",
-          items: { type: "string" },
+          items: {
+            type: "object",
+            properties: {
+              claim: {
+                type: "string",
+                description:
+                  "A single self-contained proposition restating only what the source text asserts (no added detail, no paraphrasing beyond minimal grammatical cleanup). Do not include subjective judgments (e.g. 'this is a good pricing strategy'), predictions, or strategic recommendations — those must be omitted entirely, not included with a caveat.",
+              },
+              sourceStage: {
+                type: "string",
+                enum: ["stress-test", "devils-advocate"],
+                description:
+                  "Which labeled section of the source text ('STRESS-TEST SECTION' or 'DEVIL'S-ADVOCATE SECTION') this claim was taken from.",
+              },
+              importanceScore: {
+                type: "integer",
+                minimum: 0,
+                maximum: 100,
+                description:
+                  "0-100 score for how much this claim would undermine the conclusion of the section it came from if it turned out to be false — 100 means the conclusion falls apart without it, 0 means it's a minor, replaceable detail.",
+              },
+            },
+            required: ["claim", "sourceStage", "importanceScore"],
+            additionalProperties: false,
+          },
           description:
-            "Zero or more atomic factual claims, each a single self-contained proposition restating only what the source text asserts (no added detail, no paraphrasing beyond minimal grammatical cleanup). Do not include subjective judgments (e.g. 'this is a good pricing strategy'), predictions, or strategic recommendations — those must be omitted entirely, not included with a caveat. Order the array by importance, most important claim first: a claim is more important the more it would undermine the argument it appears in if it turned out to be false.",
+            "Zero or more atomic factual claims, each scored and tagged with the section it came from.",
         },
       },
       required: ["claims"],
@@ -109,13 +166,15 @@ const EXTRACT_CLAIMS_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctionTool = 
   },
 };
 
-const EXTRACT_CLAIMS_SYSTEM_PROMPT = `You are a claim-extraction tool. You will be given analysis text. Your only job is to extract atomic, independently fact-checkable claims from it — calling the submit_extracted_claims tool with the result.
+const EXTRACT_CLAIMS_SYSTEM_PROMPT = `You are a claim-extraction tool. You will be given analysis text made up of two labeled sections: STRESS-TEST SECTION and DEVIL'S-ADVOCATE SECTION. Your only job is to extract atomic, independently fact-checkable claims from it — calling the submit_extracted_claims tool with the result.
 
 A claim is checkable only if it asserts something verifiable against external reality (a statistic, a market size figure, a named competitor's documented action, a regulatory requirement, a historical event or date). A claim is NOT checkable if it is a subjective judgment, a strategic opinion, a recommendation, or a prediction about the future — exclude these entirely, do not include them with a caveat or hedge.
 
 One proposition per claim. Do not paraphrase beyond minimal grammatical cleanup needed to make the claim stand alone.
 
-Order the claims array by importance, most important first. A claim's importance is how much it would undermine the stress-test's conclusion or the devil's-advocate case if it turned out to be false — i.e. how central it is to the argument it supports. Only a limited number of claims at the front of this list will actually get checked, so the most decision-critical, highest-impact-if-wrong claims must come first.
+For each claim, set sourceStage to whichever labeled section it came from.
+
+For each claim, set importanceScore to a 0-100 score of how much it would undermine the conclusion of its section if it turned out to be false — i.e. how central it is to the argument it supports. Only a limited number of the highest-scoring claims will actually get checked, so score honestly and use the full range rather than clustering everything near the same value.
 
 It is correct and expected to return zero claims if the text contains no checkable factual claims.`;
 
@@ -156,7 +215,7 @@ async function extractClaims(
   openai: OpenAI,
   stressTest: StressTestInput,
   devilsAdvocateCase: DevilsAdvocateCase
-): Promise<string[]> {
+): Promise<ExtractedClaim[]> {
   const completion = await openai.chat.completions.create(
     {
       model: EXTRACTION_MODEL,
@@ -195,7 +254,7 @@ async function extractClaims(
       ? (parsedArgs as Record<string, unknown>).claims
       : null;
 
-  if (!isStringArrayAllowEmpty(claims)) {
+  if (!isExtractedClaimArrayAllowEmpty(claims)) {
     console.error(
       "[fact-check] OpenAI returned an unusable extraction tool call:",
       JSON.stringify(completion.choices[0]?.message)
@@ -314,20 +373,22 @@ ${researchText}`,
   return { verdict: candidate.verdict, source };
 }
 
-async function verifyClaim(openai: OpenAI, claim: string): Promise<FactCheckEntry> {
-  const research = await researchClaim(openai, claim);
-  const classification = await classifyClaim(openai, claim, research.text);
+async function verifyClaim(openai: OpenAI, claim: ExtractedClaim): Promise<FactCheckEntry> {
+  const research = await researchClaim(openai, claim.claim);
+  const classification = await classifyClaim(openai, claim.claim, research.text);
   return {
-    claim,
+    claim: claim.claim,
     verdict: classification.verdict,
     source: research.source ?? classification.source,
+    originStage: claim.sourceStage,
+    importanceScore: claim.importanceScore,
   };
 }
 
 export async function runFactCheckExtract(
   stressTestRaw: unknown,
   devilsAdvocateCaseRaw: unknown
-): Promise<{ claims: string[] }> {
+): Promise<{ claims: ExtractedClaim[] }> {
   const stressTest = validateStressTestInput(stressTestRaw);
   if (!stressTest) {
     throw new StageValidationError(
@@ -345,7 +406,7 @@ export async function runFactCheckExtract(
   const startTime = Date.now();
   const openai = getOpenAIClient();
 
-  let claims: string[];
+  let claims: ExtractedClaim[];
   try {
     claims = await extractClaims(openai, stressTest, devilsAdvocateCase);
   } catch (error) {
@@ -353,9 +414,15 @@ export async function runFactCheckExtract(
     throw new StageApiError(ERROR_MESSAGE);
   }
 
-  const cappedClaims = claims.length > MAX_CLAIMS ? claims.slice(0, MAX_CLAIMS) : claims;
-  if (claims.length > MAX_CLAIMS) {
-    console.log(`[fact-check-extract] extracted ${claims.length} claims, capping to ${MAX_CLAIMS}`);
+  const sortedByImportance = [...claims].sort((a, b) => b.importanceScore - a.importanceScore);
+  const cappedClaims =
+    sortedByImportance.length > MAX_CLAIMS
+      ? sortedByImportance.slice(0, MAX_CLAIMS)
+      : sortedByImportance;
+  if (sortedByImportance.length > MAX_CLAIMS) {
+    console.log(
+      `[fact-check-extract] extracted ${sortedByImportance.length} claims, capping to ${MAX_CLAIMS} by importance score`
+    );
   }
 
   await pendoTrackServer("fact_check_claims_extracted", {
@@ -368,8 +435,10 @@ export async function runFactCheckExtract(
 }
 
 export async function runFactCheck(claimsRaw: unknown): Promise<FactCheckEntry[]> {
-  if (!isStringArrayAllowEmpty(claimsRaw)) {
-    throw new StageValidationError('"claims" is required and must be an array of strings');
+  if (!isExtractedClaimArrayAllowEmpty(claimsRaw)) {
+    throw new StageValidationError(
+      '"claims" is required and must be an array of extracted claim objects (claim, sourceStage, importanceScore)'
+    );
   }
   const claims = claimsRaw;
 
@@ -392,8 +461,17 @@ export async function runFactCheck(claimsRaw: unknown): Promise<FactCheckEntry[]
 
   const entries = settled.map((result, index) => {
     if (result.status === "fulfilled") return result.value;
-    console.error(`[fact-check] verification failed for claim "${claims[index]}":`, result.reason);
-    return { claim: claims[index], verdict: "UNVERIFIABLE" as Verdict, source: null };
+    console.error(
+      `[fact-check] verification failed for claim "${claims[index].claim}":`,
+      result.reason
+    );
+    return {
+      claim: claims[index].claim,
+      verdict: "UNVERIFIABLE" as Verdict,
+      source: null,
+      originStage: claims[index].sourceStage,
+      importanceScore: claims[index].importanceScore,
+    };
   });
 
   await pendoTrackServer("fact_check_completed", {

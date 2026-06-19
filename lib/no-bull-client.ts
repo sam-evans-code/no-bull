@@ -46,5 +46,6 @@ export function inferInFlightStage(results: JobResults): StageName {
   if (!results.couldBeWrong) return STAGE_ORDER[2];
   if (!results.devilsAdvocateCase) return STAGE_ORDER[3];
   if (!results.factCheckClaims) return STAGE_ORDER[4];
-  return STAGE_ORDER[5];
+  if (!results.factCheck) return STAGE_ORDER[5];
+  return STAGE_ORDER[6];
 }

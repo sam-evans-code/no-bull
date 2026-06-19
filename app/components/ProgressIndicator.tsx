@@ -24,6 +24,8 @@ function isStageDone(stage: (typeof STAGE_ORDER)[number], results: JobResults): 
       return Boolean(results.factCheckClaims);
     case "fact-check":
       return Boolean(results.factCheck);
+    case "narrative-correction":
+      return Boolean(results.narrativeCorrections);
   }
 }
 

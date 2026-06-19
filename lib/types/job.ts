@@ -8,9 +8,11 @@ export type StageName =
   | "could-be-wrong"
   | "devils-advocate"
   | "fact-check-extract"
-  | "fact-check";
+  | "fact-check"
+  | "narrative-correction";
 export type JobStatus = "pending" | "running" | "complete" | "failed";
 export type Verdict = "ENTAILED" | "CONTRADICTED" | "UNVERIFIABLE";
+export type SourceStage = "stress-test" | "devils-advocate";
 
 export interface StressTestResult {
   counterHypotheses: string[];
@@ -28,19 +30,32 @@ export interface DevilsAdvocateResult {
   conclusion: string;
 }
 
+export interface ExtractedClaim {
+  claim: string;
+  sourceStage: SourceStage;
+  importanceScore: number;
+}
+
 export interface FactCheckEntry {
   claim: string;
   verdict: Verdict;
   source: string | null;
+  originStage: SourceStage;
+  importanceScore: number;
 }
+
+export type NarrativeCorrection =
+  | { stage: "stress-test"; triggeringClaims: string[]; revised: StressTestResult }
+  | { stage: "devils-advocate"; triggeringClaims: string[]; revised: DevilsAdvocateResult };
 
 export interface JobResults {
   reframedQuestion?: string;
   stressTest?: StressTestResult;
   couldBeWrong?: CounterEvidenceResult;
   devilsAdvocateCase?: DevilsAdvocateResult;
-  factCheckClaims?: string[];
+  factCheckClaims?: ExtractedClaim[];
   factCheck?: FactCheckEntry[];
+  narrativeCorrections?: NarrativeCorrection[];
 }
 
 export interface JobState {
@@ -60,6 +75,7 @@ export const STAGE_LABELS: Record<StageName, string> = {
   "devils-advocate": "Building the counter-case",
   "fact-check-extract": "Extracting claims to check",
   "fact-check": "Fact-checking claims",
+  "narrative-correction": "Revising sections with corrected facts",
 };
 
 export const STAGE_ORDER: StageName[] = [
@@ -69,4 +85,5 @@ export const STAGE_ORDER: StageName[] = [
   "devils-advocate",
   "fact-check-extract",
   "fact-check",
+  "narrative-correction",
 ];
