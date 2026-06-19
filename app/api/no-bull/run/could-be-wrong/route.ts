@@ -6,7 +6,7 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   return handleStageRequest(request, {
     name: "could-be-wrong",
-    nextPath: "/api/no-bull/run/devils-advocate",
+    terminal: false,
     run: async (job) => ({
       couldBeWrong: await runCouldBeWrong(
         job.results.reframedQuestion,

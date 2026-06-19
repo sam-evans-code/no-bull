@@ -6,7 +6,7 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   return handleStageRequest(request, {
     name: "stress-test",
-    nextPath: "/api/no-bull/run/could-be-wrong",
+    terminal: false,
     run: async (job) => ({
       stressTest: await runStressTestAnalysis(job.results.reframedQuestion),
     }),

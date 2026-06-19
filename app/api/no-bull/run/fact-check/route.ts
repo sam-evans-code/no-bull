@@ -6,7 +6,7 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   return handleStageRequest(request, {
     name: "fact-check",
-    nextPath: null,
+    terminal: true,
     run: async (job) => ({
       factCheck: await runFactCheck(job.results.factCheckClaims),
     }),

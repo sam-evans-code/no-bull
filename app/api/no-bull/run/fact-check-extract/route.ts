@@ -6,7 +6,7 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   return handleStageRequest(request, {
     name: "fact-check-extract",
-    nextPath: "/api/no-bull/run/fact-check",
+    terminal: false,
     run: async (job) => {
       const { claims } = await runFactCheckExtract(
         job.results.stressTest,

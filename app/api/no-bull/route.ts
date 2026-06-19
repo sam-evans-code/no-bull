@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { after } from "next/server";
-import { createJob } from "@/lib/job-store";
+import { createJob, STAGE_ORDER } from "@/lib/job-store";
+import { triggerStage } from "@/lib/stage-runner";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -15,13 +16,7 @@ export async function POST(request: Request) {
   const { jobId } = await createJob(input);
   const origin = new URL(request.url).origin;
 
-  after(() => {
-    return fetch(`${origin}/api/no-bull/run/reframe`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId }),
-    }).catch((err) => console.error(`[no-bull] failed to trigger run for job ${jobId}:`, err));
-  });
+  after(() => triggerStage(jobId, STAGE_ORDER[0], origin));
 
   return NextResponse.json({ jobId }, { status: 202 });
 }

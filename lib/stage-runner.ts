@@ -6,8 +6,38 @@ const GENERIC_ERROR_MESSAGE = "Something went wrong running the pipeline — ple
 
 interface StageConfig {
   name: StageName;
-  nextPath: string | null; // null = terminal stage (fact-check)
+  terminal: boolean;
   run: (job: JobState) => Promise<Partial<JobResults>>;
+}
+
+// Fires the trigger POST for `stage`, bounded with a timeout and an explicit ok-check —
+// an unbounded/unchecked fetch here previously caused a fully silent stall (CLAUDE.md
+// Session 8 addendum #4). Marks the job failed immediately on failure rather than waiting
+// for the 150s stale-job fallback to eventually catch it. Shared by POST /api/no-bull
+// (which triggers "reframe" directly) and GET /api/no-bull/[jobId] (which now drives every
+// later stage transition from the poll cycle — see addendum #6 for why stages no longer
+// chain to each other directly).
+export async function triggerStage(jobId: string, stage: StageName, origin: string): Promise<void> {
+  try {
+    const response = await fetch(`${origin}/api/no-bull/run/${stage}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      throw new Error(`trigger fetch to ${stage} returned HTTP ${response.status}`);
+    }
+  } catch (err) {
+    console.error(`[no-bull] failed to trigger ${stage} for job ${jobId}:`, err);
+    const latest = await readJob(jobId);
+    if (latest && latest.status !== "failed" && latest.status !== "complete") {
+      latest.status = "failed";
+      latest.failedAt = stage;
+      latest.error = GENERIC_ERROR_MESSAGE;
+      await writeJob(jobId, latest);
+    }
+  }
 }
 
 export async function handleStageRequest(request: Request, config: StageConfig): Promise<Response> {
@@ -34,19 +64,21 @@ export async function handleStageRequest(request: Request, config: StageConfig):
   job.status = "running";
   await writeJob(jobId, job); // stamps lastUpdatedAt = now — bounds THIS stage's own staleness window
 
-  // Ack immediately and do the real work (the LLM call + triggering the next stage) inside
-  // after(). This is load-bearing, not a style choice: if this handler instead awaited
-  // config.run() before responding, the caller's own after()-triggered fetch (one hop up
-  // the chain) would stay open for this invocation's ENTIRE runtime, transitively chaining
-  // every downstream stage's duration into every upstream invocation's 60s budget — the
-  // cascading-timeout bug this structure exists to prevent. See CLAUDE.md Session 8 addendum.
-  const origin = new URL(request.url).origin;
-  after(() => runStageWork(jobId, job, config, origin));
+  // Ack immediately and do the real work inside after(). This is load-bearing, not a style
+  // choice: if this handler instead awaited config.run() before responding, the caller's own
+  // after()-triggered fetch (one hop up) would stay open for this invocation's ENTIRE
+  // runtime, transitively chaining every downstream stage's duration into every upstream
+  // invocation's 60s budget — the cascading-timeout bug this structure exists to prevent.
+  // See CLAUDE.md Session 8 addendum #2. Note this stage no longer triggers the *next* stage
+  // itself on completion — GET /api/no-bull/[jobId]'s poll cycle does that now (addendum #6),
+  // since chaining stages directly hits a hard Vercel limit on nested after()-fetches at
+  // exactly the 5th hop.
+  after(() => runStageWork(jobId, job, config));
 
   return NextResponse.json({ jobId, status: "running" }, { status: 202 });
 }
 
-async function runStageWork(jobId: string, job: JobState, config: StageConfig, origin: string): Promise<void> {
+async function runStageWork(jobId: string, job: JobState, config: StageConfig): Promise<void> {
   try {
     const stageStart = Date.now();
     const partial = await config.run(job);
@@ -63,40 +95,14 @@ async function runStageWork(jobId: string, job: JobState, config: StageConfig, o
       return;
     }
 
-    if (config.nextPath) {
-      await writeJob(jobId, job); // still "running"
-      // Awaited, but the downstream route also acks-and-defers via this same function, so
-      // this only waits for its fast ack — not its real work. That's what keeps this
-      // invocation's own duration from absorbing the next stage's. Bounded with a timeout
-      // and an explicit ok-check: an unbounded/unchecked fetch here silently stalls the
-      // whole job with no thrown exception and no log line on either side of the hop —
-      // confirmed live (job stalled identically between devils-advocate and
-      // fact-check-extract even after fact-check-extract's own internal calls were already
-      // timeout-bounded), so the hang/bad-response is in this hop itself, not downstream.
-      try {
-        const response = await fetch(`${origin}${config.nextPath}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId }),
-          signal: AbortSignal.timeout(10_000),
-        });
-        if (!response.ok) {
-          throw new Error(`trigger fetch to ${config.nextPath} returned HTTP ${response.status}`);
-        }
-      } catch (err) {
-        console.error(`[no-bull/run] failed to trigger ${config.nextPath} for job ${jobId}:`, err);
-        const latestOnFailure = await readJob(jobId);
-        if (latestOnFailure && latestOnFailure.status !== "failed") {
-          latestOnFailure.status = "failed";
-          latestOnFailure.failedAt = config.name;
-          latestOnFailure.error = GENERIC_ERROR_MESSAGE;
-          await writeJob(jobId, latestOnFailure);
-        }
-      }
-    } else {
+    if (config.terminal) {
       job.status = "complete";
       await writeJob(jobId, job);
       console.log(`[no-bull/run] job ${jobId} complete`);
+    } else {
+      // Stays "running" with the new results written. The next poll will see this stage's
+      // output and trigger whatever comes next — see triggerStage above.
+      await writeJob(jobId, job);
     }
   } catch (error) {
     const latest = await readJob(jobId);
