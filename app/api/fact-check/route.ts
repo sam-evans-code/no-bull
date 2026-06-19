@@ -1,40 +1,32 @@
-import { NextRequest, NextResponse } from "next/server";
-import { pendoTrackServer } from "@/lib/pendo-server";
+import { NextResponse } from "next/server";
+import { runFactCheck } from "@/lib/stages/fact-check";
+import { StageApiError, StageValidationError } from "@/lib/stage-errors";
 
-export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-  // Body contains stressTestOutput and devilsAdvocateOutput for claim extraction
-  await request.json();
+export async function POST(request: Request) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
 
-  // TODO: Extract atomic factual claims from Stage 2 + Stage 4 outputs and
-  // web-search-verify each one via OpenAI API (Session 6)
-  const claims: Array<{
-    claim: string;
-    verdict: "supported" | "contradicted" | "unverifiable";
-    source?: string;
-  }> = [];
-  const subjectiveClaimsSkipped = 0;
+  const stressTest = (body as { stressTest?: unknown })?.stressTest;
+  const devilsAdvocateCase = (body as { devilsAdvocateCase?: unknown })?.devilsAdvocateCase;
 
-  const supportedCount = claims.filter(
-    (c) => c.verdict === "supported"
-  ).length;
-  const contradictedCount = claims.filter(
-    (c) => c.verdict === "contradicted"
-  ).length;
-  const unverifiableCount = claims.filter(
-    (c) => c.verdict === "unverifiable"
-  ).length;
-
-  // Pendo Track: fact_check_completed — fires after Stage 5 claim verification finishes
-  await pendoTrackServer("fact_check_completed", {
-    total_claims_extracted: claims.length,
-    supported_count: supportedCount,
-    contradicted_count: contradictedCount,
-    unverifiable_count: unverifiableCount,
-    subjective_claims_skipped: subjectiveClaimsSkipped,
-    sources_found_count: claims.filter((c) => c.source).length,
-    duration_ms: Date.now() - startTime,
-  });
-
-  return NextResponse.json({ claims });
+  try {
+    const factCheck = await runFactCheck(stressTest, devilsAdvocateCase);
+    return NextResponse.json({ factCheck }, { status: 200 });
+  } catch (error) {
+    if (error instanceof StageValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof StageApiError) {
+      return NextResponse.json({ error: error.message }, { status: 502 });
+    }
+    console.error("[fact-check] unexpected error:", error);
+    return NextResponse.json(
+      { error: "Something went wrong checking the claims in this analysis — please try again." },
+      { status: 502 }
+    );
+  }
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runReframe } from "@/lib/stages/reframe";
+import { runStressTest } from "@/lib/stages/stress-test";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
 
 export async function POST(request: Request) {
@@ -10,11 +10,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const input = (body as { input?: unknown })?.input;
+  const reframedQuestion = (body as { reframedQuestion?: unknown })?.reframedQuestion;
 
   try {
-    const reframedQuestion = await runReframe(input);
-    return NextResponse.json({ reframedQuestion }, { status: 200 });
+    const { stressTest, couldBeWrong } = await runStressTest(reframedQuestion);
+    return NextResponse.json({ stressTest, couldBeWrong }, { status: 200 });
   } catch (error) {
     if (error instanceof StageValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
@@ -22,9 +22,9 @@ export async function POST(request: Request) {
     if (error instanceof StageApiError) {
       return NextResponse.json({ error: error.message }, { status: 502 });
     }
-    console.error("[reframe] unexpected error:", error);
+    console.error("[stress-test] unexpected error:", error);
     return NextResponse.json(
-      { error: "Something went wrong reframing your input — please try again." },
+      { error: "Something went wrong running the stress test — please try again." },
       { status: 502 }
     );
   }

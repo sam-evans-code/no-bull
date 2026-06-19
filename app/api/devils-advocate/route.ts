@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runReframe } from "@/lib/stages/reframe";
+import { runDevilsAdvocate } from "@/lib/stages/devils-advocate";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
 
 export async function POST(request: Request) {
@@ -10,11 +10,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const input = (body as { input?: unknown })?.input;
+  const reframedQuestion = (body as { reframedQuestion?: unknown })?.reframedQuestion;
+  const stressTest = (body as { stressTest?: unknown })?.stressTest;
 
   try {
-    const reframedQuestion = await runReframe(input);
-    return NextResponse.json({ reframedQuestion }, { status: 200 });
+    const devilsAdvocateCase = await runDevilsAdvocate(reframedQuestion, stressTest);
+    return NextResponse.json({ devilsAdvocateCase }, { status: 200 });
   } catch (error) {
     if (error instanceof StageValidationError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
@@ -22,9 +23,9 @@ export async function POST(request: Request) {
     if (error instanceof StageApiError) {
       return NextResponse.json({ error: error.message }, { status: 502 });
     }
-    console.error("[reframe] unexpected error:", error);
+    console.error("[devils-advocate] unexpected error:", error);
     return NextResponse.json(
-      { error: "Something went wrong reframing your input — please try again." },
+      { error: "Something went wrong building the counter-case — please try again." },
       { status: 502 }
     );
   }
