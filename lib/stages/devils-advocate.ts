@@ -116,7 +116,7 @@ export async function runDevilsAdvocate(
   let completion: OpenAI.Chat.Completions.ChatCompletion;
   try {
     completion = await openai.chat.completions.create({
-      model: "gpt-5.5",
+      model: "gpt-5.4",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: buildUserPrompt(reframedQuestion.trim(), stressTest) },

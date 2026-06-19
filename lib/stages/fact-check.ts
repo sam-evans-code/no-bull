@@ -2,7 +2,9 @@ import OpenAI from "openai";
 import { getOpenAIClient } from "@/lib/openai";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
 
-const MODEL = "gpt-5.5";
+const EXTRACTION_MODEL = "gpt-5.4-nano";
+const RESEARCH_MODEL = "gpt-5.4-mini";
+const CLASSIFICATION_MODEL = "gpt-5.4-nano";
 
 // Keep Stage 5 well under Vercel's 60s maxDuration ceiling — see CLAUDE.md Session 7 log.
 const MAX_CLAIMS = 3;
@@ -148,7 +150,7 @@ async function extractClaims(
   devilsAdvocateCase: DevilsAdvocateCase
 ): Promise<string[]> {
   const completion = await openai.chat.completions.create({
-    model: MODEL,
+    model: EXTRACTION_MODEL,
     messages: [
       { role: "system", content: EXTRACT_CLAIMS_SYSTEM_PROMPT },
       { role: "user", content: buildClaimSourceText(stressTest, devilsAdvocateCase) },
@@ -208,7 +210,7 @@ async function researchClaim(
   claim: string
 ): Promise<{ text: string; source: string | null }> {
   const response = await openai.responses.create({
-    model: MODEL,
+    model: RESEARCH_MODEL,
     tools: [{ type: "web_search" }],
     tool_choice: "auto",
     input: `Research this specific factual claim using web search and report what you find, citing your sources: "${claim}"
@@ -236,7 +238,7 @@ async function classifyClaim(
   researchText: string
 ): Promise<{ verdict: Verdict; source: string | null }> {
   const completion = await openai.chat.completions.create({
-    model: MODEL,
+    model: CLASSIFICATION_MODEL,
     messages: [
       { role: "system", content: CLASSIFY_CLAIM_SYSTEM_PROMPT },
       {

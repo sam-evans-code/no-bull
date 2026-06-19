@@ -34,6 +34,19 @@ export async function handleStageRequest(request: Request, config: StageConfig):
   job.status = "running";
   await writeJob(jobId, job); // stamps lastUpdatedAt = now — bounds THIS stage's own staleness window
 
+  // Ack immediately and do the real work (the LLM call + triggering the next stage) inside
+  // after(). This is load-bearing, not a style choice: if this handler instead awaited
+  // config.run() before responding, the caller's own after()-triggered fetch (one hop up
+  // the chain) would stay open for this invocation's ENTIRE runtime, transitively chaining
+  // every downstream stage's duration into every upstream invocation's 60s budget — the
+  // cascading-timeout bug this structure exists to prevent. See CLAUDE.md Session 8 addendum.
+  const origin = new URL(request.url).origin;
+  after(() => runStageWork(jobId, job, config, origin));
+
+  return NextResponse.json({ jobId, status: "running" }, { status: 202 });
+}
+
+async function runStageWork(jobId: string, job: JobState, config: StageConfig, origin: string): Promise<void> {
   try {
     const stageStart = Date.now();
     const partial = await config.run(job);
@@ -47,31 +60,30 @@ export async function handleStageRequest(request: Request, config: StageConfig):
       console.warn(
         `[no-bull/run] job ${jobId} was marked failed by stale detection mid-flight — discarding ${config.name}'s result, not advancing`
       );
-      return NextResponse.json(latest, { status: 200 });
+      return;
     }
 
     if (config.nextPath) {
       await writeJob(jobId, job); // still "running"
-      const origin = new URL(request.url).origin;
-      after(() => {
-        return fetch(`${origin}${config.nextPath}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId }),
-        }).catch((err) =>
-          console.error(`[no-bull/run] failed to trigger ${config.nextPath} for job ${jobId}:`, err)
-        );
-      });
+      // Awaited, but the downstream route also acks-and-defers via this same function, so
+      // this only waits for its fast ack — not its real work. That's what keeps this
+      // invocation's own duration from absorbing the next stage's.
+      await fetch(`${origin}${config.nextPath}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      }).catch((err) =>
+        console.error(`[no-bull/run] failed to trigger ${config.nextPath} for job ${jobId}:`, err)
+      );
     } else {
       job.status = "complete";
       await writeJob(jobId, job);
       console.log(`[no-bull/run] job ${jobId} complete`);
     }
-    return NextResponse.json(job, { status: 200 });
   } catch (error) {
     const latest = await readJob(jobId);
     if (latest?.status === "failed") {
-      return NextResponse.json(latest, { status: 200 }); // same race guard on the failure path
+      return; // same race guard on the failure path
     }
     console.error(`[no-bull/run] job ${jobId} failed at ${config.name}:`, error);
     job.status = "failed";
@@ -81,6 +93,5 @@ export async function handleStageRequest(request: Request, config: StageConfig):
         ? error.message
         : GENERIC_ERROR_MESSAGE;
     await writeJob(jobId, job);
-    return NextResponse.json(job, { status: 200 });
   }
 }
