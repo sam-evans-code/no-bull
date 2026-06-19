@@ -17,7 +17,7 @@ export const JUDGE_EXAMPLES: JudgeExample[] = [
     firstName: "Valeria",
     fullName: "Valeria Khokhlova",
     role: "Head of Community",
-    text: "Since the Pendo acquisition, a few ProductTank organizers have asked whether Mind the Product is going to start feeling like a Pendo marketing channel. I want to send something to the global organizer group proactively addressing this, reassuring them the community stays vendor-neutral, before it turns into a bigger trust issue at the next round of local meetups.",
+    text: "Since the Pendo acquisition, a few ProductTank organisers have asked whether Mind the Product is going to start feeling like a Pendo marketing channel. I want to send something to the global organiser group proactively addressing this, reassuring them the community stays vendor-neutral, before it turns into a bigger trust issue at the next round of local meetups.",
   },
   {
     firstName: "Dave",
@@ -35,7 +35,7 @@ export const JUDGE_EXAMPLES: JudgeExample[] = [
     firstName: "Curtis",
     fullName: "Curtis Michelson",
     role: "Co-Founder, Jedi On The Fly",
-    text: "Our research is showing that teams running agentic AI inside live work hit strong early results, then stall on the harder 30% without realizing they've stalled — and we think this is structural, not a model-capability problem. I want to build this into a new offering: a short, paid 'alignment audit' for teams already running agents in production, positioned as the natural next engagement after our retreats. I'm planning to pitch this to two existing clients this month.",
+    text: "Our research is showing that teams running agentic AI inside live work hit strong early results, then stall on the harder 30% without realising they've stalled — and we think this is structural, not a model-capability problem. I want to build this into a new offering: a short, paid 'alignment audit' for teams already running agents in production, positioned as the natural next engagement after our retreats. I'm planning to pitch this to two existing clients this month.",
   },
   {
     firstName: "Amit",
