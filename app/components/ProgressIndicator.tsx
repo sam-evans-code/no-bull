@@ -48,8 +48,8 @@ export default function ProgressIndicator({
   const showSlowStressTestNote = activeStage === "stress-test" && elapsedSeconds >= 20;
 
   return (
-    <section className="flex flex-col gap-3 rounded-sm border border-zinc-800 bg-zinc-900 p-5">
-      <p className="text-sm text-zinc-500">Running for {elapsedSeconds}s…</p>
+    <section className="flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+      <p className="text-[1.3125rem] text-zinc-500">Running for {elapsedSeconds}s…</p>
       <ol className="flex flex-col gap-2">
         {STAGE_ORDER.map((stage) => {
           const done = isStageDone(stage, results);
@@ -57,7 +57,7 @@ export default function ProgressIndicator({
           return (
             <li
               key={stage}
-              className={`flex items-center gap-2 text-sm ${
+              className={`flex items-center gap-2 text-[1.3125rem] ${
                 done
                   ? "text-zinc-100"
                   : active

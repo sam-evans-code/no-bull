@@ -26,7 +26,7 @@ function findCorrection<S extends SourceStage>(
 
 function RevisionBanner({ triggeringClaims }: { triggeringClaims: string[] }) {
   return (
-    <div className="rounded-sm border border-red-900 bg-red-950/40 p-3 text-sm text-red-200">
+    <div className="rounded-xl border border-red-900 bg-red-950/40 p-3 text-sm text-red-200">
       <p className="font-medium">
         ⚠ This section was revised — fact-checking found the following claim(s) to be
         false:
@@ -43,7 +43,7 @@ function RevisionBanner({ triggeringClaims }: { triggeringClaims: string[] }) {
 function UnverifiableNote({ claims }: { claims: string[] }) {
   if (claims.length === 0) return null;
   return (
-    <div className="rounded-sm border border-zinc-800 bg-zinc-900 p-3 text-sm text-zinc-400">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-sm text-zinc-300">
       <p>
         ❓ The following claim(s) in this section could not be confirmed or denied via web
         search — that&apos;s not the same as being false:
@@ -76,7 +76,7 @@ export default function ResultsView({ results }: ResultsViewProps) {
     <div className="flex flex-col gap-6">
       {results.reframedQuestion && (
         <section className="flex flex-col gap-2">
-          <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-zinc-400">
             The Reframed Question
           </h2>
           <p className="text-base text-zinc-100">{results.reframedQuestion}</p>
@@ -85,10 +85,12 @@ export default function ResultsView({ results }: ResultsViewProps) {
 
       {stressTest && (
         <details className="flex flex-col gap-2">
-          <summary className="cursor-pointer font-mono text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            The Stress Test
-            <span className="ml-2 text-xs font-normal normal-case tracking-normal text-zinc-500">
-              — {stressTest.counterHypotheses.length} counter-hypotheses · base-rate reasoning
+          <summary className="cursor-pointer">
+            <span className="block font-mono text-sm font-semibold uppercase tracking-wide text-zinc-400">
+              The Stress Test
+            </span>
+            <span className="mt-1 block text-xs font-normal text-zinc-400">
+              {stressTest.counterHypotheses.length} counter-hypotheses · base-rate reasoning
               applied · false-premise check applied
               {stressTestCorrection && " · revised"}
             </span>
@@ -112,10 +114,12 @@ export default function ResultsView({ results }: ResultsViewProps) {
 
       {results.couldBeWrong && (
         <details className="flex flex-col gap-2">
-          <summary className="cursor-pointer font-mono text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            Where This Could Be Wrong
-            <span className="ml-2 text-xs font-normal normal-case tracking-normal text-zinc-500">
-              — {results.couldBeWrong.counterEvidence.length} ways this could be wrong
+          <summary className="cursor-pointer">
+            <span className="block font-mono text-sm font-semibold uppercase tracking-wide text-zinc-400">
+              Where This Could Be Wrong
+            </span>
+            <span className="mt-1 block text-xs font-normal text-zinc-400">
+              {results.couldBeWrong.counterEvidence.length} ways this could be wrong
             </span>
           </summary>
           <ul className="list-disc pl-5 text-base text-zinc-100">
@@ -127,11 +131,13 @@ export default function ResultsView({ results }: ResultsViewProps) {
       )}
 
       {devilsAdvocateCase && (
-        <details className="flex flex-col gap-2 rounded-sm border-l-2 border-red-600 bg-zinc-900 p-4">
-          <summary className="cursor-pointer font-mono text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            The Strongest Case Against It
-            <span className="ml-2 text-xs font-normal normal-case tracking-normal text-zinc-500">
-              — {devilsAdvocateCase.keyArguments.length} counter-arguments
+        <details className="flex flex-col gap-2 rounded-2xl border-l-2 border-red-600 bg-zinc-900 p-4">
+          <summary className="cursor-pointer">
+            <span className="block font-mono text-sm font-semibold uppercase tracking-wide text-zinc-400">
+              The Strongest Case Against It
+            </span>
+            <span className="mt-1 block text-xs font-normal text-zinc-400">
+              {devilsAdvocateCase.keyArguments.length} counter-arguments
               {devilsAdvocateCorrection && " · revised"}
             </span>
           </summary>
@@ -150,11 +156,11 @@ export default function ResultsView({ results }: ResultsViewProps) {
 
       {results.factCheck && (
         <section className="flex flex-col gap-2">
-          <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-zinc-500">
+          <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-zinc-400">
             Fact Check
           </h2>
           {results.factCheck.length === 0 ? (
-            <p className="text-base text-zinc-400">
+            <p className="text-base text-zinc-300">
               No independently checkable factual claims were found in this
               analysis.
             </p>
@@ -162,7 +168,7 @@ export default function ResultsView({ results }: ResultsViewProps) {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] border-collapse text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 text-left text-zinc-500">
+                  <tr className="border-b border-zinc-800 text-left text-zinc-400">
                     <th className="py-2 pr-4 font-medium">Claim</th>
                     <th className="py-2 pr-4 font-medium">Verdict</th>
                     <th className="py-2 pr-4 font-medium">Impact if false</th>
@@ -190,7 +196,7 @@ export default function ResultsView({ results }: ResultsViewProps) {
                             </p>
                           )}
                         </td>
-                        <td className="py-2 pr-4 whitespace-nowrap text-zinc-500">
+                        <td className="py-2 pr-4 whitespace-nowrap text-zinc-400">
                           {entry.importanceScore}/100
                         </td>
                         <td className="py-2">
@@ -218,7 +224,7 @@ export default function ResultsView({ results }: ResultsViewProps) {
       )}
 
       {results.reframedQuestion && (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-zinc-400">
           Stress test by Claude · Counter-case and fact-check by GPT
         </p>
       )}

@@ -3,9 +3,10 @@
 import { useEffect, useReducer } from "react";
 import type { JobResults, JobState, StageName } from "@/lib/types/job";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/types/job";
-import { pollJob, submitIdea } from "@/lib/no-bull-client";
+import { checkClarify, pollJob, submitIdea } from "@/lib/no-bull-client";
 import { pendoTrackClient } from "@/lib/pendo-client";
 import IdeaForm from "@/app/components/IdeaForm";
+import ClarifyQuestions from "@/app/components/ClarifyQuestions";
 import ProgressIndicator from "@/app/components/ProgressIndicator";
 import ResultsView from "@/app/components/ResultsView";
 
@@ -14,7 +15,8 @@ const MAX_CONSECUTIVE_POLL_FAILURES = 3;
 
 type FlowState =
   | { phase: "idle"; input: string; submitError?: string }
-  | { phase: "submitting"; input: string }
+  | { phase: "submitting"; input: string; skipWarning?: boolean }
+  | { phase: "clarifying"; input: string; questions: string[] }
   | {
       phase: "polling";
       jobId: string;
@@ -35,7 +37,9 @@ type FlowState =
 
 type Action =
   | { type: "INPUT_CHANGE"; text: string }
-  | { type: "SUBMIT_START"; input: string }
+  | { type: "SUBMIT_START"; input: string; skipWarning?: boolean }
+  | { type: "CLARIFY_NEEDED"; questions: string[] }
+  | { type: "CLARIFY_BACK" }
   | { type: "SUBMIT_ERROR"; message: string }
   | { type: "SUBMIT_SUCCESS"; jobId: string }
   | { type: "POLL_OK"; job: JobState }
@@ -52,7 +56,15 @@ function reducer(state: FlowState, action: Action): FlowState {
       return { phase: "idle", input: action.text };
 
     case "SUBMIT_START":
-      return { phase: "submitting", input: action.input };
+      return { phase: "submitting", input: action.input, skipWarning: action.skipWarning };
+
+    case "CLARIFY_NEEDED":
+      if (state.phase !== "submitting") return state;
+      return { phase: "clarifying", input: state.input, questions: action.questions };
+
+    case "CLARIFY_BACK":
+      if (state.phase !== "clarifying") return state;
+      return { phase: "idle", input: state.input };
 
     case "SUBMIT_ERROR":
       if (state.phase !== "submitting") return state;
@@ -114,15 +126,8 @@ function reducer(state: FlowState, action: Action): FlowState {
 export default function NoBullApp() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
 
-  async function handleSubmit(text: string) {
+  async function proceedToJob(text: string) {
     const submitStartedAt = Date.now();
-    pendoTrackClient("idea_submitted", {
-      input_length: text.length,
-      input_contains_question_mark: text.includes("?"),
-      input_word_count: text.trim().split(/\s+/).filter(Boolean).length,
-    });
-
-    dispatch({ type: "SUBMIT_START", input: text });
     try {
       const { jobId } = await submitIdea(text);
       dispatch({ type: "SUBMIT_SUCCESS", jobId });
@@ -139,6 +144,38 @@ export default function NoBullApp() {
         message: "Couldn't start a new run — please try again.",
       });
     }
+  }
+
+  async function handleSubmit(text: string) {
+    pendoTrackClient("idea_submitted", {
+      input_length: text.length,
+      input_contains_question_mark: text.includes("?"),
+      input_word_count: text.trim().split(/\s+/).filter(Boolean).length,
+    });
+
+    dispatch({ type: "SUBMIT_START", input: text });
+
+    const clarify = await checkClarify(text);
+    if (clarify.isSpecificEnough || clarify.questions.length === 0) {
+      await proceedToJob(text);
+      return;
+    }
+    pendoTrackClient("clarify_questions_shown", {
+      question_count: clarify.questions.length,
+    });
+    dispatch({ type: "CLARIFY_NEEDED", questions: clarify.questions });
+  }
+
+  function handleClarifyAnswer(combinedInput: string) {
+    pendoTrackClient("clarify_resolved", { resolution: "answered" });
+    dispatch({ type: "SUBMIT_START", input: combinedInput });
+    void proceedToJob(combinedInput);
+  }
+
+  function handleClarifySkip(originalInput: string) {
+    pendoTrackClient("clarify_resolved", { resolution: "skipped" });
+    dispatch({ type: "SUBMIT_START", input: originalInput, skipWarning: true });
+    void proceedToJob(originalInput);
   }
 
   function handleReset(previousPhase: FlowState["phase"]) {
@@ -233,6 +270,19 @@ export default function NoBullApp() {
         onChange={() => {}}
         onSubmit={() => {}}
         submitting={true}
+        skipWarning={state.skipWarning}
+      />
+    );
+  }
+
+  if (state.phase === "clarifying") {
+    return (
+      <ClarifyQuestions
+        originalInput={state.input}
+        questions={state.questions}
+        onAnswerAndContinue={handleClarifyAnswer}
+        onSkipAnyway={() => handleClarifySkip(state.input)}
+        onBack={() => dispatch({ type: "CLARIFY_BACK" })}
       />
     );
   }
@@ -267,7 +317,7 @@ export default function NoBullApp() {
   if (state.phase === "failed") {
     return (
       <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4 rounded-sm border border-red-900 bg-red-950/40 p-5">
+        <div className="flex flex-col gap-4 rounded-2xl border border-red-900 bg-red-950/40 p-5">
           <h2 className="text-base font-semibold text-zinc-50">
             Something went wrong
           </h2>
@@ -290,7 +340,7 @@ export default function NoBullApp() {
           <button
             type="button"
             onClick={() => handleSubmit(state.failedInput)}
-            className="rounded-sm bg-red-600 px-5 py-2.5 text-sm font-medium text-white"
+            className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-medium text-white"
           >
             Try again
           </button>
@@ -309,7 +359,7 @@ export default function NoBullApp() {
   // phase === "expired"
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 rounded-sm border border-zinc-800 bg-zinc-900 p-5">
+      <div className="flex flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
         <h2 className="text-base font-semibold text-zinc-50">
           This result has expired
         </h2>
