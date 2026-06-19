@@ -1,9 +1,15 @@
 import { kv } from "@vercel/kv";
-import type { StressTestInput, CounterEvidenceInput } from "@/lib/stages/stress-test";
+import type { StressTestInput } from "@/lib/stages/stress-test";
+import type { CounterEvidenceInput } from "@/lib/stages/could-be-wrong";
 import type { DevilsAdvocateCase } from "@/lib/stages/devils-advocate";
 import type { FactCheckEntry } from "@/lib/stages/fact-check";
 
-export type StageName = "reframe" | "stress-test" | "devils-advocate" | "fact-check";
+export type StageName =
+  | "reframe"
+  | "stress-test"
+  | "could-be-wrong"
+  | "devils-advocate"
+  | "fact-check";
 export type JobStatus = "pending" | "running" | "complete" | "failed";
 
 export interface JobResults {
@@ -26,10 +32,17 @@ export interface JobState {
 
 const JOB_TTL_SECONDS = 3600;
 
-// ~3x the slowest measured single stage (stress-test, ~53s) — see CLAUDE.md Session 8 addendum.
+// ~3x the slowest measured single stage (stress-test stage 2, ~38s, after the
+// stress-test/could-be-wrong split — see CLAUDE.md Session 8 addendum #2 follow-up).
 const STALE_THRESHOLD_MS = 150_000;
 
-const STAGE_ORDER: StageName[] = ["reframe", "stress-test", "devils-advocate", "fact-check"];
+const STAGE_ORDER: StageName[] = [
+  "reframe",
+  "stress-test",
+  "could-be-wrong",
+  "devils-advocate",
+  "fact-check",
+];
 
 function jobKey(jobId: string): string {
   return `job:${jobId}`;
@@ -65,9 +78,10 @@ export function isJobStale(job: JobState): boolean {
 
 function inferInFlightStage(results: JobResults): StageName {
   if (!results.reframedQuestion) return STAGE_ORDER[0];
-  if (!results.stressTest || !results.couldBeWrong) return STAGE_ORDER[1];
-  if (!results.devilsAdvocateCase) return STAGE_ORDER[2];
-  return STAGE_ORDER[3];
+  if (!results.stressTest) return STAGE_ORDER[1];
+  if (!results.couldBeWrong) return STAGE_ORDER[2];
+  if (!results.devilsAdvocateCase) return STAGE_ORDER[3];
+  return STAGE_ORDER[4];
 }
 
 export function buildStaleFailure(job: JobState): JobState {

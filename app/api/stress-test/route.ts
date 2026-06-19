@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { runStressTest } from "@/lib/stages/stress-test";
+import { runStressTestAnalysis } from "@/lib/stages/stress-test";
+import { runCouldBeWrong } from "@/lib/stages/could-be-wrong";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
 
 export async function POST(request: Request) {
@@ -13,7 +14,8 @@ export async function POST(request: Request) {
   const reframedQuestion = (body as { reframedQuestion?: unknown })?.reframedQuestion;
 
   try {
-    const { stressTest, couldBeWrong } = await runStressTest(reframedQuestion);
+    const stressTest = await runStressTestAnalysis(reframedQuestion);
+    const couldBeWrong = await runCouldBeWrong(reframedQuestion, stressTest);
     return NextResponse.json({ stressTest, couldBeWrong }, { status: 200 });
   } catch (error) {
     if (error instanceof StageValidationError) {

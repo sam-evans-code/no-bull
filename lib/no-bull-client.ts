@@ -42,7 +42,8 @@ export async function pollJob(jobId: string): Promise<PollResult> {
 // Mirrors lib/job-store.ts's server-side inferInFlightStage — keep in sync.
 export function inferInFlightStage(results: JobResults): StageName {
   if (!results.reframedQuestion) return STAGE_ORDER[0];
-  if (!results.stressTest || !results.couldBeWrong) return STAGE_ORDER[1];
-  if (!results.devilsAdvocateCase) return STAGE_ORDER[2];
-  return STAGE_ORDER[3];
+  if (!results.stressTest) return STAGE_ORDER[1];
+  if (!results.couldBeWrong) return STAGE_ORDER[2];
+  if (!results.devilsAdvocateCase) return STAGE_ORDER[3];
+  return STAGE_ORDER[4];
 }

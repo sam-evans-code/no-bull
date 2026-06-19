@@ -2,7 +2,12 @@
 // modules (pull in @vercel/kv, next/server's `after`) and can't be imported into
 // a client bundle. If the backend shape changes, update both.
 
-export type StageName = "reframe" | "stress-test" | "devils-advocate" | "fact-check";
+export type StageName =
+  | "reframe"
+  | "stress-test"
+  | "could-be-wrong"
+  | "devils-advocate"
+  | "fact-check";
 export type JobStatus = "pending" | "running" | "complete" | "failed";
 export type Verdict = "ENTAILED" | "CONTRADICTED" | "UNVERIFIABLE";
 
@@ -49,6 +54,7 @@ export interface JobState {
 export const STAGE_LABELS: Record<StageName, string> = {
   reframe: "Reframing your question",
   "stress-test": "Stress-testing the idea",
+  "could-be-wrong": "Checking for blind spots",
   "devils-advocate": "Building the counter-case",
   "fact-check": "Fact-checking claims",
 };
@@ -56,6 +62,7 @@ export const STAGE_LABELS: Record<StageName, string> = {
 export const STAGE_ORDER: StageName[] = [
   "reframe",
   "stress-test",
+  "could-be-wrong",
   "devils-advocate",
   "fact-check",
 ];

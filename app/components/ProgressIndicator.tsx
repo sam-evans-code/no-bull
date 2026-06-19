@@ -15,7 +15,9 @@ function isStageDone(stage: (typeof STAGE_ORDER)[number], results: JobResults): 
     case "reframe":
       return Boolean(results.reframedQuestion);
     case "stress-test":
-      return Boolean(results.stressTest && results.couldBeWrong);
+      return Boolean(results.stressTest);
+    case "could-be-wrong":
+      return Boolean(results.couldBeWrong);
     case "devils-advocate":
       return Boolean(results.devilsAdvocateCase);
     case "fact-check":
@@ -67,7 +69,7 @@ export default function ProgressIndicator({
       </ol>
       {showSlowStressTestNote && (
         <p className="text-xs text-zinc-500">
-          This step usually takes 45–70s — still working.
+          This step usually takes 30–45s — still working.
         </p>
       )}
     </section>

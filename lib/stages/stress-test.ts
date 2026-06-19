@@ -35,24 +35,6 @@ const STRESS_TEST_TOOL: Anthropic.Tool = {
   },
 };
 
-const COUNTER_EVIDENCE_TOOL: Anthropic.Tool = {
-  name: "submit_counter_evidence",
-  description:
-    "Submit the itemized list of specific ways the stress test analysis could be wrong.",
-  input_schema: {
-    type: "object",
-    properties: {
-      counterEvidence: {
-        type: "array",
-        items: { type: "string" },
-        description:
-          "At least 4 specific, self-contained items. Each must name a concrete weakness — under-weighted evidence, a dismissed alternative interpretation, a misapplied base rate, or an unverified assumption. Generic hedges do not count.",
-      },
-    },
-    required: ["counterEvidence"],
-  },
-};
-
 const STRESS_TEST_SYSTEM_PROMPT = `You are a rigorous analyst stress-testing a question. You must call the submit_stress_test tool to respond. Fill in its fields in this exact order, treating each as a mandatory step that must be completed before the next:
 
 1. counterHypotheses — generate at least 2 genuinely distinct competing hypotheses for why the premise might not hold.
@@ -62,22 +44,14 @@ const STRESS_TEST_SYSTEM_PROMPT = `You are a rigorous analyst stress-testing a q
 
 Do not skip ahead to a conclusion before completing the earlier fields.`;
 
-const COUNTER_EVIDENCE_FOLLOWUP = `Before treating the analysis above as final, list every specific way it could be wrong. Required: at least 4 distinct items. Each item must name a specific weakness — a piece of evidence that was under-weighted, an alternative interpretation that was dismissed too quickly, a base rate that was misapplied, or an assumption that hasn't been verified. A generic acknowledgment such as "this analysis could be wrong" or "more research is needed" does not count as an item and must not appear. Call the submit_counter_evidence tool to respond.`;
-
 const STAGE2_ERROR_MESSAGE =
   "Something went wrong running the stress test — please try again.";
-const STAGE3_ERROR_MESSAGE =
-  "Something went wrong checking for blind spots — please try again.";
 
 export interface StressTestInput {
   counterHypotheses: string[];
   baseRates: string;
   falsePremiseCheck: string;
   conclusion: string;
-}
-
-export interface CounterEvidenceInput {
-  counterEvidence: string[];
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -117,18 +91,7 @@ function validateStressTestInput(input: unknown): StressTestInput | null {
   return null;
 }
 
-function validateCounterEvidenceInput(input: unknown): CounterEvidenceInput | null {
-  if (typeof input !== "object" || input === null) return null;
-  const candidate = input as Record<string, unknown>;
-  if (isStringArray(candidate.counterEvidence, 4)) {
-    return candidate as unknown as CounterEvidenceInput;
-  }
-  return null;
-}
-
-export async function runStressTest(
-  reframedQuestion: unknown
-): Promise<{ stressTest: StressTestInput; couldBeWrong: CounterEvidenceInput }> {
+export async function runStressTestAnalysis(reframedQuestion: unknown): Promise<StressTestInput> {
   if (typeof reframedQuestion !== "string") {
     throw new StageValidationError('"reframedQuestion" is required and must be a string');
   }
@@ -170,49 +133,5 @@ export async function runStressTest(
     throw new StageApiError(STAGE2_ERROR_MESSAGE);
   }
 
-  let stage3Message: Anthropic.Message;
-  try {
-    stage3Message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2048,
-      system: STRESS_TEST_SYSTEM_PROMPT,
-      tools: [STRESS_TEST_TOOL, COUNTER_EVIDENCE_TOOL],
-      tool_choice: { type: "tool", name: COUNTER_EVIDENCE_TOOL.name },
-      messages: [
-        { role: "user", content: trimmedQuestion },
-        { role: "assistant", content: stage2Message.content },
-        {
-          role: "user",
-          content: [
-            {
-              type: "tool_result",
-              tool_use_id: stage2ToolUse.id,
-              content: "Stress test recorded.",
-            },
-            { type: "text", text: COUNTER_EVIDENCE_FOLLOWUP },
-          ],
-        },
-      ],
-    });
-  } catch (error) {
-    console.error("[stress-test] Stage 3 Anthropic call failed:", error);
-    throw new StageApiError(STAGE3_ERROR_MESSAGE);
-  }
-
-  console.log(
-    `[stress-test] stage3 tokens — input: ${stage3Message.usage.input_tokens}, output: ${stage3Message.usage.output_tokens}`
-  );
-
-  const stage3ToolUse = extractToolUse(stage3Message, COUNTER_EVIDENCE_TOOL.name);
-  const couldBeWrong = stage3ToolUse ? validateCounterEvidenceInput(stage3ToolUse.input) : null;
-
-  if (!stage3ToolUse || !couldBeWrong) {
-    console.error(
-      "[stress-test] Stage 3 returned an unusable tool call:",
-      JSON.stringify(stage3Message.content)
-    );
-    throw new StageApiError(STAGE3_ERROR_MESSAGE);
-  }
-
-  return { stressTest, couldBeWrong };
+  return stressTest;
 }
