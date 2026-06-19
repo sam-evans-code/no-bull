@@ -380,7 +380,7 @@ export default function NoBullApp() {
         <button
           type="button"
           onClick={() => handleSubmit(state.failedInput)}
-          className="rounded-sm bg-red-600 px-5 py-2.5 text-sm font-medium text-white"
+          className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-medium text-white"
         >
           Try again
         </button>

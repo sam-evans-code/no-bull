@@ -49,7 +49,7 @@ export default function ProgressIndicator({
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-      <p className="text-[1.3125rem] text-zinc-500">Running for {elapsedSeconds}s…</p>
+      <p className="text-[0.84375rem] text-zinc-500">Running for {elapsedSeconds}s…</p>
       <ol className="flex flex-col gap-2">
         {STAGE_ORDER.map((stage) => {
           const done = isStageDone(stage, results);
@@ -57,7 +57,7 @@ export default function ProgressIndicator({
           return (
             <li
               key={stage}
-              className={`flex items-center gap-2 text-[1.3125rem] ${
+              className={`flex items-center gap-2 text-[0.84375rem] ${
                 done
                   ? "text-zinc-100"
                   : active
