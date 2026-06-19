@@ -3,6 +3,8 @@ import { after } from "next/server";
 import { createJob, STAGE_ORDER } from "@/lib/job-store";
 import { triggerStage } from "@/lib/stage-runner";
 
+const MAX_INPUT_LENGTH = 4000; // kept in sync with app/components/IdeaForm.tsx
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -12,6 +14,13 @@ export async function POST(request: Request) {
   }
 
   const input = (body as { input?: unknown })?.input;
+
+  if (typeof input !== "string" || input.trim().length === 0) {
+    return NextResponse.json({ error: "Input is required" }, { status: 400 });
+  }
+  if (input.length > MAX_INPUT_LENGTH) {
+    return NextResponse.json({ error: "Input is too long" }, { status: 400 });
+  }
 
   const { jobId } = await createJob(input);
   const origin = new URL(request.url).origin;

@@ -31,7 +31,7 @@ type FlowState =
       failedAt?: StageName;
       results: JobResults;
     }
-  | { phase: "expired"; failedInput: string };
+  | { phase: "expired"; failedInput: string; results: JobResults };
 
 type Action =
   | { type: "INPUT_CHANGE"; text: string }
@@ -89,7 +89,7 @@ function reducer(state: FlowState, action: Action): FlowState {
 
     case "POLL_NOT_FOUND": {
       if (state.phase !== "polling") return state;
-      return { phase: "expired", failedInput: state.input };
+      return { phase: "expired", failedInput: state.input, results: state.results };
     }
 
     case "POLL_ERROR": {
@@ -256,7 +256,7 @@ export default function NoBullApp() {
         <button
           type="button"
           onClick={() => handleReset(state.phase)}
-          className="self-start text-sm font-medium text-zinc-600 underline"
+          className="self-start text-sm font-medium text-zinc-400 underline"
         >
           Try another idea
         </button>
@@ -266,28 +266,38 @@ export default function NoBullApp() {
 
   if (state.phase === "failed") {
     return (
-      <div className="flex flex-col gap-4 rounded-md border border-red-200 bg-red-50 p-5">
-        <h2 className="text-base font-semibold text-zinc-900">
-          Something went wrong
-        </h2>
-        <p className="text-sm text-zinc-700">{state.error}</p>
-        {state.failedAt && (
-          <p className="text-xs text-zinc-500">
-            Failed at: {STAGE_LABELS[state.failedAt]}
-          </p>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4 rounded-sm border border-red-900 bg-red-950/40 p-5">
+          <h2 className="text-base font-semibold text-zinc-50">
+            Something went wrong
+          </h2>
+          <p className="text-sm text-zinc-300">{state.error}</p>
+          {state.failedAt && (
+            <p className="text-xs text-zinc-500">
+              Failed at: {STAGE_LABELS[state.failedAt]}
+            </p>
+          )}
+        </div>
+        {Object.keys(state.results).length > 0 && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              What we got before it failed
+            </p>
+            <ResultsView results={state.results} />
+          </div>
         )}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
           <button
             type="button"
             onClick={() => handleSubmit(state.failedInput)}
-            className="rounded-md bg-black px-5 py-2.5 text-sm font-medium text-white"
+            className="rounded-sm bg-red-600 px-5 py-2.5 text-sm font-medium text-white"
           >
             Try again
           </button>
           <button
             type="button"
             onClick={() => handleReset(state.phase)}
-            className="text-sm font-medium text-zinc-600 underline"
+            className="text-sm font-medium text-zinc-400 underline"
           >
             Try another idea
           </button>
@@ -298,26 +308,36 @@ export default function NoBullApp() {
 
   // phase === "expired"
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-zinc-200 bg-zinc-50 p-5">
-      <h2 className="text-base font-semibold text-zinc-900">
-        This result has expired
-      </h2>
-      <p className="text-sm text-zinc-700">
-        We couldn&rsquo;t find this run — results are only kept for an hour,
-        and this one&rsquo;s gone. Your idea wasn&rsquo;t lost, though.
-      </p>
-      <div className="flex items-center gap-4">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 rounded-sm border border-zinc-800 bg-zinc-900 p-5">
+        <h2 className="text-base font-semibold text-zinc-50">
+          This result has expired
+        </h2>
+        <p className="text-sm text-zinc-300">
+          We couldn&rsquo;t find this run — results are only kept for an hour,
+          and this one&rsquo;s gone. Your idea wasn&rsquo;t lost, though.
+        </p>
+      </div>
+      {Object.keys(state.results).length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+            What we got before it expired
+          </p>
+          <ResultsView results={state.results} />
+        </div>
+      )}
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
         <button
           type="button"
           onClick={() => handleSubmit(state.failedInput)}
-          className="rounded-md bg-black px-5 py-2.5 text-sm font-medium text-white"
+          className="rounded-sm bg-red-600 px-5 py-2.5 text-sm font-medium text-white"
         >
           Try again
         </button>
         <button
           type="button"
           onClick={() => handleReset(state.phase)}
-          className="text-sm font-medium text-zinc-600 underline"
+          className="text-sm font-medium text-zinc-400 underline"
         >
           Try another idea
         </button>
