@@ -17,6 +17,7 @@ export interface JobResults {
 export interface JobState {
   status: JobStatus;
   createdAt: number;
+  lastUpdatedAt: number;
   input: unknown;
   failedAt?: StageName;
   error?: string;
@@ -25,15 +26,22 @@ export interface JobState {
 
 const JOB_TTL_SECONDS = 3600;
 
+// ~3x the slowest measured single stage (stress-test, ~53s) — see CLAUDE.md Session 8 addendum.
+const STALE_THRESHOLD_MS = 150_000;
+
+const STAGE_ORDER: StageName[] = ["reframe", "stress-test", "devils-advocate", "fact-check"];
+
 function jobKey(jobId: string): string {
   return `job:${jobId}`;
 }
 
 export async function createJob(input: unknown): Promise<{ jobId: string; job: JobState }> {
   const jobId = crypto.randomUUID();
+  const now = Date.now();
   const job: JobState = {
     status: "pending",
-    createdAt: Date.now(),
+    createdAt: now,
+    lastUpdatedAt: now,
     input,
     results: {},
   };
@@ -47,5 +55,27 @@ export async function readJob(jobId: string): Promise<JobState | null> {
 }
 
 export async function writeJob(jobId: string, job: JobState): Promise<void> {
+  job.lastUpdatedAt = Date.now();
   await kv.set(jobKey(jobId), job, { ex: JOB_TTL_SECONDS });
+}
+
+export function isJobStale(job: JobState): boolean {
+  return job.status === "running" && Date.now() - job.lastUpdatedAt > STALE_THRESHOLD_MS;
+}
+
+function inferInFlightStage(results: JobResults): StageName {
+  if (!results.reframedQuestion) return STAGE_ORDER[0];
+  if (!results.stressTest || !results.couldBeWrong) return STAGE_ORDER[1];
+  if (!results.devilsAdvocateCase) return STAGE_ORDER[2];
+  return STAGE_ORDER[3];
+}
+
+export function buildStaleFailure(job: JobState): JobState {
+  return {
+    ...job,
+    status: "failed",
+    failedAt: inferInFlightStage(job.results),
+    error:
+      "This run stalled with no progress for too long and is being treated as failed.",
+  };
 }

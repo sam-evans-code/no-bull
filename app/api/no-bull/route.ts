@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   const origin = new URL(request.url).origin;
 
   after(() => {
-    return fetch(`${origin}/api/no-bull/run`, {
+    return fetch(`${origin}/api/no-bull/run/reframe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jobId }),

@@ -1,0 +1,14 @@
+import { handleStageRequest } from "@/lib/stage-runner";
+import { runFactCheck } from "@/lib/stages/fact-check";
+
+export const maxDuration = 60;
+
+export async function POST(request: Request) {
+  return handleStageRequest(request, {
+    name: "fact-check",
+    nextPath: null,
+    run: async (job) => ({
+      factCheck: await runFactCheck(job.results.stressTest, job.results.devilsAdvocateCase),
+    }),
+  });
+}
