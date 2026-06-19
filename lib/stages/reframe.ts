@@ -1,5 +1,6 @@
 import { getAnthropicClient } from "@/lib/anthropic";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
+import { pendoTrackServer } from "@/lib/pendo-server";
 
 const SYSTEM_PROMPT = `You are a prompt-reframing tool. Your only job is to rewrite the user's
 input into a single neutral, stance-free question. You do not answer the
@@ -69,6 +70,16 @@ export async function runReframe(input: unknown): Promise<string> {
     console.error("[reframe] Anthropic returned empty/unusable output");
     throw new StageApiError(GENERIC_ERROR_MESSAGE);
   }
+
+  const trimmedInput = input.trim();
+  await pendoTrackServer("prompt_reframed", {
+    was_already_neutral: reframedQuestion === trimmedInput,
+    original_input_length: trimmedInput.length,
+    reframed_output_length: reframedQuestion.length,
+    length_change_ratio: Number(
+      (reframedQuestion.length / Math.max(trimmedInput.length, 1)).toFixed(2)
+    ),
+  });
 
   return reframedQuestion;
 }

@@ -2,8 +2,9 @@
 
 import { useEffect, useReducer } from "react";
 import type { JobResults, JobState, StageName } from "@/lib/types/job";
-import { STAGE_LABELS } from "@/lib/types/job";
+import { STAGE_LABELS, STAGE_ORDER } from "@/lib/types/job";
 import { pollJob, submitIdea } from "@/lib/no-bull-client";
+import { pendoTrackClient } from "@/lib/pendo-client";
 import IdeaForm from "@/app/components/IdeaForm";
 import ProgressIndicator from "@/app/components/ProgressIndicator";
 import ResultsView from "@/app/components/ResultsView";
@@ -114,11 +115,25 @@ export default function NoBullApp() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
 
   async function handleSubmit(text: string) {
+    const submitStartedAt = Date.now();
+    pendoTrackClient("idea_submitted", {
+      input_length: text.length,
+      input_contains_question_mark: text.includes("?"),
+      input_word_count: text.trim().split(/\s+/).filter(Boolean).length,
+    });
+
     dispatch({ type: "SUBMIT_START", input: text });
     try {
       const { jobId } = await submitIdea(text);
       dispatch({ type: "SUBMIT_SUCCESS", jobId });
     } catch {
+      pendoTrackClient("analysis_failed", {
+        failed_stage_name: "unknown",
+        failed_stage_number: 0,
+        error_type: "network_error",
+        stages_completed_count: 0,
+        duration_before_failure_ms: Date.now() - submitStartedAt,
+      });
       dispatch({
         type: "SUBMIT_ERROR",
         message: "Couldn't start a new run — please try again.",
@@ -126,20 +141,66 @@ export default function NoBullApp() {
     }
   }
 
+  function handleReset(previousPhase: FlowState["phase"]) {
+    pendoTrackClient("new_analysis_requested", {
+      previous_analysis_completed: previousPhase === "complete",
+    });
+    dispatch({ type: "RESET" });
+  }
+
   const pollingJobId = state.phase === "polling" ? state.jobId : null;
 
   useEffect(() => {
-    if (!pollingJobId) return;
+    if (!pollingJobId || state.phase !== "polling") return;
+    const { input, pollingStartedAt } = state;
     let cancelled = false;
+    let consecutiveFailures = 0;
+    let latestStagesCompletedCount = 0;
 
     const id = setInterval(async () => {
       const result = await pollJob(pollingJobId);
       if (cancelled) return;
       if (result.kind === "ok") {
-        dispatch({ type: "POLL_OK", job: result.job });
+        consecutiveFailures = 0;
+        const { job } = result;
+        const stagesCompletedCount = Object.keys(job.results).length;
+        latestStagesCompletedCount = stagesCompletedCount;
+        if (job.status === "complete") {
+          const factCheck = job.results.factCheck ?? [];
+          pendoTrackClient("analysis_completed", {
+            total_duration_ms: Date.now() - pollingStartedAt,
+            input_length: input.length,
+            was_input_reframed: job.results.reframedQuestion !== input.trim(),
+            total_claims_checked: factCheck.length,
+            supported_claims_count: factCheck.filter((c) => c.verdict === "ENTAILED").length,
+            contradicted_claims_count: factCheck.filter((c) => c.verdict === "CONTRADICTED")
+              .length,
+            unverifiable_claims_count: factCheck.filter((c) => c.verdict === "UNVERIFIABLE")
+              .length,
+          });
+        } else if (job.status === "failed") {
+          pendoTrackClient("analysis_failed", {
+            failed_stage_name: job.failedAt ?? "unknown",
+            failed_stage_number: job.failedAt ? STAGE_ORDER.indexOf(job.failedAt) + 1 : 0,
+            error_type: "pipeline_error",
+            stages_completed_count: stagesCompletedCount,
+            duration_before_failure_ms: Date.now() - pollingStartedAt,
+          });
+        }
+        dispatch({ type: "POLL_OK", job });
       } else if (result.kind === "not-found") {
         dispatch({ type: "POLL_NOT_FOUND" });
       } else {
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+          pendoTrackClient("analysis_failed", {
+            failed_stage_name: "unknown",
+            failed_stage_number: 0,
+            error_type: "network_error",
+            stages_completed_count: latestStagesCompletedCount,
+            duration_before_failure_ms: Date.now() - pollingStartedAt,
+          });
+        }
         dispatch({ type: "POLL_ERROR" });
       }
     }, POLL_INTERVAL_MS);
@@ -148,6 +209,9 @@ export default function NoBullApp() {
       cancelled = true;
       clearInterval(id);
     };
+    // input/pollingStartedAt are fixed for the lifetime of a polling session and
+    // change only alongside pollingJobId, which already restarts this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pollingJobId]);
 
   if (state.phase === "idle") {
@@ -191,7 +255,7 @@ export default function NoBullApp() {
         <ResultsView results={state.results} />
         <button
           type="button"
-          onClick={() => dispatch({ type: "RESET" })}
+          onClick={() => handleReset(state.phase)}
           className="self-start text-sm font-medium text-zinc-600 underline"
         >
           Try another idea
@@ -222,7 +286,7 @@ export default function NoBullApp() {
           </button>
           <button
             type="button"
-            onClick={() => dispatch({ type: "RESET" })}
+            onClick={() => handleReset(state.phase)}
             className="text-sm font-medium text-zinc-600 underline"
           >
             Try another idea
@@ -252,7 +316,7 @@ export default function NoBullApp() {
         </button>
         <button
           type="button"
-          onClick={() => dispatch({ type: "RESET" })}
+          onClick={() => handleReset(state.phase)}
           className="text-sm font-medium text-zinc-600 underline"
         >
           Try another idea

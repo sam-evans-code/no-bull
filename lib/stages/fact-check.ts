@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { getOpenAIClient } from "@/lib/openai";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
+import { pendoTrackServer } from "@/lib/pendo-server";
 
 const EXTRACTION_MODEL = "gpt-5.4-nano";
 const RESEARCH_MODEL = "gpt-5.4-mini";
@@ -321,6 +322,7 @@ export async function runFactCheck(
     );
   }
 
+  const startTime = Date.now();
   const openai = getOpenAIClient();
 
   let claims: string[];
@@ -332,6 +334,14 @@ export async function runFactCheck(
   }
 
   if (claims.length === 0) {
+    await pendoTrackServer("fact_check_completed", {
+      total_claims_extracted: 0,
+      supported_count: 0,
+      contradicted_count: 0,
+      unverifiable_count: 0,
+      sources_found_count: 0,
+      duration_ms: Date.now() - startTime,
+    });
     return [];
   }
 
@@ -344,7 +354,7 @@ export async function runFactCheck(
     cappedClaims.map((claim) => verifyClaim(openai, claim))
   );
 
-  return settled.map((result, index) => {
+  const entries = settled.map((result, index) => {
     if (result.status === "fulfilled") return result.value;
     console.error(
       `[fact-check] verification failed for claim "${cappedClaims[index]}":`,
@@ -352,4 +362,15 @@ export async function runFactCheck(
     );
     return { claim: cappedClaims[index], verdict: "UNVERIFIABLE" as Verdict, source: null };
   });
+
+  await pendoTrackServer("fact_check_completed", {
+    total_claims_extracted: claims.length,
+    supported_count: entries.filter((e) => e.verdict === "ENTAILED").length,
+    contradicted_count: entries.filter((e) => e.verdict === "CONTRADICTED").length,
+    unverifiable_count: entries.filter((e) => e.verdict === "UNVERIFIABLE").length,
+    sources_found_count: entries.filter((e) => e.source !== null).length,
+    duration_ms: Date.now() - startTime,
+  });
+
+  return entries;
 }
