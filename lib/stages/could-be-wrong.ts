@@ -29,7 +29,7 @@ const COUNTER_EVIDENCE_TOOL: Anthropic.Tool = {
         type: "array",
         items: { type: "string" },
         description:
-          "At least 4 specific, self-contained items. Each must name a concrete weakness — under-weighted evidence, a dismissed alternative interpretation, a misapplied base rate, or an unverified assumption. Generic hedges do not count.",
+          "At least 4 specific, self-contained items. Each must name a concrete weakness — under-weighted evidence, a dismissed alternative interpretation, a misapplied base rate, or an unverified assumption. Generic hedges do not count. Keep each item to 1–2 sentences.",
       },
     },
     required: ["counterEvidence"],
@@ -43,9 +43,11 @@ const STRESS_TEST_SYSTEM_PROMPT = `You are a rigorous analyst stress-testing a q
 3. falsePremiseCheck — check the question itself for false or shaky assumed premises.
 4. conclusion — only now, write the bottom-line analysis, and make sure it is actually consistent with what you wrote above rather than a generic take.
 
+Be concise: use as few sentences as accuracy requires. Do not restate the question, add throat-clearing ("it's worth noting", "it's important to consider"), or pad with generic caveats — every sentence must add new information.
+
 Do not skip ahead to a conclusion before completing the earlier fields.`;
 
-const COUNTER_EVIDENCE_FOLLOWUP = `Before treating the analysis above as final, list every specific way it could be wrong. Required: at least 4 distinct items. Each item must name a specific weakness — a piece of evidence that was under-weighted, an alternative interpretation that was dismissed too quickly, a base rate that was misapplied, or an assumption that hasn't been verified. A generic acknowledgment such as "this analysis could be wrong" or "more research is needed" does not count as an item and must not appear. Call the submit_counter_evidence tool to respond.`;
+const COUNTER_EVIDENCE_FOLLOWUP = `Before treating the analysis above as final, list every specific way it could be wrong. Required: at least 4 distinct items. Each item must name a specific weakness — a piece of evidence that was under-weighted, an alternative interpretation that was dismissed too quickly, a base rate that was misapplied, or an assumption that hasn't been verified. A generic acknowledgment such as "this analysis could be wrong" or "more research is needed" does not count as an item and must not appear. Keep each item to 1–2 sentences. Call the submit_counter_evidence tool to respond.`;
 
 const STAGE3_ERROR_MESSAGE =
   "Something went wrong checking for blind spots — please try again.";

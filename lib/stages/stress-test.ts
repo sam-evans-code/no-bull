@@ -13,22 +13,22 @@ export const STRESS_TEST_TOOL: Anthropic.Tool = {
         type: "array",
         items: { type: "string" },
         description:
-          "At least 2 distinct, substantive competing hypotheses or explanations for why the premise might not hold. Each must be genuinely different from the others, not a rephrasing.",
+          "At least 2 distinct, substantive competing hypotheses or explanations for why the premise might not hold. Each must be genuinely different from the others, not a rephrasing. Keep each hypothesis to 1–2 sentences — name the mechanism, don't narrate it.",
       },
       baseRates: {
         type: "string",
         description:
-          "Explicit base-rate or reference-class reasoning: how do similar decisions/situations typically play out, and how does that bear on this case? Write as flowing prose sentences, not a bullet list or JSON array.",
+          "Explicit base-rate or reference-class reasoning: how do similar decisions/situations typically play out, and how does that bear on this case? Write as flowing prose sentences, not a bullet list or JSON array. Keep this to 2–3 sentences.",
       },
       falsePremiseCheck: {
         type: "string",
         description:
-          "Name any false or shaky premises assumed by the question. If none are found, state explicitly that none were found and why. Write as flowing prose sentences, not a bullet list or JSON array.",
+          "Name any false or shaky premises assumed by the question. If none are found, state explicitly that none were found and why. Write as flowing prose sentences, not a bullet list or JSON array. Keep this to 1–3 sentences.",
       },
       conclusion: {
         type: "string",
         description:
-          "The bottom-line analysis. Write this only after, and consistent with, counterHypotheses, baseRates, and falsePremiseCheck above.",
+          "The bottom-line analysis. Write this only after, and consistent with, counterHypotheses, baseRates, and falsePremiseCheck above. Keep this to 2–3 sentences.",
       },
     },
     required: ["counterHypotheses", "baseRates", "falsePremiseCheck", "conclusion"],
@@ -41,6 +41,8 @@ export const STRESS_TEST_SYSTEM_PROMPT = `You are a rigorous analyst stress-test
 2. baseRates — reason explicitly about base rates / reference classes relevant to this question.
 3. falsePremiseCheck — check the question itself for false or shaky assumed premises.
 4. conclusion — only now, write the bottom-line analysis, and make sure it is actually consistent with what you wrote above rather than a generic take.
+
+Be concise: use as few sentences as accuracy requires. Do not restate the question, add throat-clearing ("it's worth noting", "it's important to consider"), or pad with generic caveats — every sentence must add new information.
 
 Do not skip ahead to a conclusion before completing the earlier fields.`;
 

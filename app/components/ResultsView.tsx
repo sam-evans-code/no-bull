@@ -84,10 +84,15 @@ export default function ResultsView({ results }: ResultsViewProps) {
       )}
 
       {stressTest && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+        <details className="flex flex-col gap-2">
+          <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-zinc-500">
             The Stress Test
-          </h2>
+            <span className="ml-2 text-xs font-normal normal-case tracking-normal text-zinc-400">
+              — {stressTest.counterHypotheses.length} counter-hypotheses · base-rate reasoning
+              applied · false-premise check applied
+              {stressTestCorrection && " · revised"}
+            </span>
+          </summary>
           {stressTestCorrection && (
             <RevisionBanner triggeringClaims={stressTestCorrection.triggeringClaims} />
           )}
@@ -102,27 +107,34 @@ export default function ResultsView({ results }: ResultsViewProps) {
             <p className="font-medium">{stressTest.conclusion}</p>
           </div>
           <UnverifiableNote claims={unverifiableByStage("stress-test")} />
-        </section>
+        </details>
       )}
 
       {results.couldBeWrong && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+        <details className="flex flex-col gap-2">
+          <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-zinc-500">
             Where This Could Be Wrong
-          </h2>
+            <span className="ml-2 text-xs font-normal normal-case tracking-normal text-zinc-400">
+              — {results.couldBeWrong.counterEvidence.length} ways this could be wrong
+            </span>
+          </summary>
           <ul className="list-disc pl-5 text-base text-zinc-900">
             {results.couldBeWrong.counterEvidence.map((item, i) => (
               <li key={i}>{item}</li>
             ))}
           </ul>
-        </section>
+        </details>
       )}
 
       {devilsAdvocateCase && (
-        <section className="flex flex-col gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+        <details className="flex flex-col gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-4">
+          <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-zinc-500">
             The Strongest Case Against It
-          </h2>
+            <span className="ml-2 text-xs font-normal normal-case tracking-normal text-zinc-400">
+              — {devilsAdvocateCase.keyArguments.length} counter-arguments
+              {devilsAdvocateCorrection && " · revised"}
+            </span>
+          </summary>
           {devilsAdvocateCorrection && (
             <RevisionBanner triggeringClaims={devilsAdvocateCorrection.triggeringClaims} />
           )}
@@ -133,7 +145,7 @@ export default function ResultsView({ results }: ResultsViewProps) {
           </ul>
           <p className="font-medium text-zinc-900">{devilsAdvocateCase.conclusion}</p>
           <UnverifiableNote claims={unverifiableByStage("devils-advocate")} />
-        </section>
+        </details>
       )}
 
       {results.factCheck && (

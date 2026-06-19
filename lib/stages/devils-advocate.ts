@@ -15,11 +15,11 @@ export const DEVILS_ADVOCATE_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctio
           type: "array",
           items: { type: "string" },
           description:
-            "At least 3 distinct, evidence-style arguments against the idea. Each must be self-contained and name a concrete mechanism, risk, market dynamic, or historical analog — not a rephrasing of the stress-test findings it was given.",
+            "At least 3 distinct, evidence-style arguments against the idea. Each must be self-contained and name a concrete mechanism, risk, market dynamic, or historical analog — not a rephrasing of the stress-test findings it was given. Keep each argument to 1–2 sentences.",
         },
         conclusion: {
           type: "string",
-          description: "1-3 sentence bottom-line: why the case against this idea is strong.",
+          description: "1-2 sentence bottom-line: why the case against this idea is strong.",
         },
       },
       required: ["keyArguments", "conclusion"],
@@ -30,7 +30,9 @@ export const DEVILS_ADVOCATE_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctio
 
 export const DEVILS_ADVOCATE_SYSTEM_PROMPT = `You are a skeptical board member reviewing this decision. Your only job is to build the strongest possible case AGAINST it, using evidence-style reasoning — concrete mechanisms, risks, market dynamics, base rates, or historical analogs — not hedging, vague qualifiers, or restated weaknesses.
 
-You will be shown another analyst's stress-test findings; do not simply restate or summarize them — your case must introduce reasoning they didn't cover, argued as a genuine adversarial position, not a balanced second opinion. Do not soften claims with "might" or "could potentially" where a direct claim is warranted — if something is genuinely uncertain, say so plainly rather than hedging by default.`;
+You will be shown another analyst's stress-test findings; do not simply restate or summarize them — your case must introduce reasoning they didn't cover, argued as a genuine adversarial position, not a balanced second opinion. Do not soften claims with "might" or "could potentially" where a direct claim is warranted — if something is genuinely uncertain, say so plainly rather than hedging by default.
+
+Be concise: state each argument in as few sentences as the mechanism requires. Do not pad with hedges, throat-clearing, or restated stress-test content — every sentence must introduce new reasoning.`;
 
 const ERROR_MESSAGE = "Something went wrong building the counter-case — please try again.";
 
