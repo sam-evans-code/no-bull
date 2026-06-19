@@ -210,14 +210,19 @@ async function researchClaim(
   openai: OpenAI,
   claim: string
 ): Promise<{ text: string; source: string | null }> {
-  const response = await openai.responses.create({
-    model: RESEARCH_MODEL,
-    tools: [{ type: "web_search" }],
-    tool_choice: "auto",
-    input: `Research this specific factual claim using web search and report what you find, citing your sources: "${claim}"
+  const response = await openai.responses.create(
+    {
+      model: RESEARCH_MODEL,
+      tools: [{ type: "web_search" }],
+      tool_choice: "auto",
+      input: `Research this specific factual claim using web search and report what you find, citing your sources: "${claim}"
 
 State plainly whether the claim appears to be true, false, or whether you could not find enough information to determine this. Do not discuss anything other than this claim.`,
-  });
+    },
+    // maxRetries: 0 because the SDK retries timeouts by default, which would silently
+    // double this call's worst-case wait — defeating the point of bounding it at all.
+    { timeout: 25_000, maxRetries: 0 }
+  );
 
   // Responses API usage uses input_tokens/output_tokens, NOT prompt_tokens/completion_tokens
   // like Chat Completions below — different shape from the same provider, easy to mix up.
@@ -238,21 +243,24 @@ async function classifyClaim(
   claim: string,
   researchText: string
 ): Promise<{ verdict: Verdict; source: string | null }> {
-  const completion = await openai.chat.completions.create({
-    model: CLASSIFICATION_MODEL,
-    messages: [
-      { role: "system", content: CLASSIFY_CLAIM_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: `Claim being checked: "${claim}"
+  const completion = await openai.chat.completions.create(
+    {
+      model: CLASSIFICATION_MODEL,
+      messages: [
+        { role: "system", content: CLASSIFY_CLAIM_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Claim being checked: "${claim}"
 
 Research findings:
 ${researchText}`,
-      },
-    ],
-    tools: [CLASSIFY_CLAIM_TOOL],
-    tool_choice: { type: "function", function: { name: CLASSIFY_CLAIM_TOOL.function.name } },
-  });
+        },
+      ],
+      tools: [CLASSIFY_CLAIM_TOOL],
+      tool_choice: { type: "function", function: { name: CLASSIFY_CLAIM_TOOL.function.name } },
+    },
+    { timeout: 10_000, maxRetries: 0 }
+  );
 
   if (completion.usage) {
     console.log(
@@ -304,10 +312,10 @@ async function verifyClaim(openai: OpenAI, claim: string): Promise<FactCheckEntr
   };
 }
 
-export async function runFactCheck(
+export async function runFactCheckExtract(
   stressTestRaw: unknown,
   devilsAdvocateCaseRaw: unknown
-): Promise<FactCheckEntry[]> {
+): Promise<{ claims: string[] }> {
   const stressTest = validateStressTestInput(stressTestRaw);
   if (!stressTest) {
     throw new StageValidationError(
@@ -329,9 +337,32 @@ export async function runFactCheck(
   try {
     claims = await extractClaims(openai, stressTest, devilsAdvocateCase);
   } catch (error) {
-    console.error("[fact-check] extraction call failed:", error);
+    console.error("[fact-check-extract] extraction call failed:", error);
     throw new StageApiError(ERROR_MESSAGE);
   }
+
+  const cappedClaims = claims.length > MAX_CLAIMS ? claims.slice(0, MAX_CLAIMS) : claims;
+  if (claims.length > MAX_CLAIMS) {
+    console.log(`[fact-check-extract] extracted ${claims.length} claims, capping to ${MAX_CLAIMS}`);
+  }
+
+  await pendoTrackServer("fact_check_claims_extracted", {
+    total_claims_extracted: claims.length,
+    capped_to: cappedClaims.length,
+    duration_ms: Date.now() - startTime,
+  });
+
+  return { claims: cappedClaims };
+}
+
+export async function runFactCheck(claimsRaw: unknown): Promise<FactCheckEntry[]> {
+  if (!isStringArrayAllowEmpty(claimsRaw)) {
+    throw new StageValidationError('"claims" is required and must be an array of strings');
+  }
+  const claims = claimsRaw;
+
+  const startTime = Date.now();
+  const openai = getOpenAIClient();
 
   if (claims.length === 0) {
     await pendoTrackServer("fact_check_completed", {
@@ -345,22 +376,12 @@ export async function runFactCheck(
     return [];
   }
 
-  if (claims.length > MAX_CLAIMS) {
-    console.log(`[fact-check] extracted ${claims.length} claims, capping to ${MAX_CLAIMS}`);
-  }
-  const cappedClaims = claims.slice(0, MAX_CLAIMS);
-
-  const settled = await Promise.allSettled(
-    cappedClaims.map((claim) => verifyClaim(openai, claim))
-  );
+  const settled = await Promise.allSettled(claims.map((claim) => verifyClaim(openai, claim)));
 
   const entries = settled.map((result, index) => {
     if (result.status === "fulfilled") return result.value;
-    console.error(
-      `[fact-check] verification failed for claim "${cappedClaims[index]}":`,
-      result.reason
-    );
-    return { claim: cappedClaims[index], verdict: "UNVERIFIABLE" as Verdict, source: null };
+    console.error(`[fact-check] verification failed for claim "${claims[index]}":`, result.reason);
+    return { claim: claims[index], verdict: "UNVERIFIABLE" as Verdict, source: null };
   });
 
   await pendoTrackServer("fact_check_completed", {

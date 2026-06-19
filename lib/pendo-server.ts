@@ -22,6 +22,7 @@ export async function pendoTrackServer(
         timestamp: Date.now(),
         properties,
       }),
+      signal: AbortSignal.timeout(5_000), // never let analytics block the pipeline
     });
   } catch (err) {
     console.error("[Pendo] Failed to track server event:", event, err);

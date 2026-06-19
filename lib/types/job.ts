@@ -7,6 +7,7 @@ export type StageName =
   | "stress-test"
   | "could-be-wrong"
   | "devils-advocate"
+  | "fact-check-extract"
   | "fact-check";
 export type JobStatus = "pending" | "running" | "complete" | "failed";
 export type Verdict = "ENTAILED" | "CONTRADICTED" | "UNVERIFIABLE";
@@ -38,6 +39,7 @@ export interface JobResults {
   stressTest?: StressTestResult;
   couldBeWrong?: CounterEvidenceResult;
   devilsAdvocateCase?: DevilsAdvocateResult;
+  factCheckClaims?: string[];
   factCheck?: FactCheckEntry[];
 }
 
@@ -56,6 +58,7 @@ export const STAGE_LABELS: Record<StageName, string> = {
   "stress-test": "Stress-testing the idea",
   "could-be-wrong": "Checking for blind spots",
   "devils-advocate": "Building the counter-case",
+  "fact-check-extract": "Extracting claims to check",
   "fact-check": "Fact-checking claims",
 };
 
@@ -64,5 +67,6 @@ export const STAGE_ORDER: StageName[] = [
   "stress-test",
   "could-be-wrong",
   "devils-advocate",
+  "fact-check-extract",
   "fact-check",
 ];

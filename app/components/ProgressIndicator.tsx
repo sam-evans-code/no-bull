@@ -20,6 +20,8 @@ function isStageDone(stage: (typeof STAGE_ORDER)[number], results: JobResults): 
       return Boolean(results.couldBeWrong);
     case "devils-advocate":
       return Boolean(results.devilsAdvocateCase);
+    case "fact-check-extract":
+      return Boolean(results.factCheckClaims);
     case "fact-check":
       return Boolean(results.factCheck);
   }

@@ -9,6 +9,7 @@ export type StageName =
   | "stress-test"
   | "could-be-wrong"
   | "devils-advocate"
+  | "fact-check-extract"
   | "fact-check";
 export type JobStatus = "pending" | "running" | "complete" | "failed";
 
@@ -17,6 +18,10 @@ export interface JobResults {
   stressTest?: StressTestInput;
   couldBeWrong?: CounterEvidenceInput;
   devilsAdvocateCase?: DevilsAdvocateCase;
+  // Output of fact-check-extract, input to fact-check. Can legitimately be `[]` (no
+  // checkable claims found) — that's still "done", and `!results.factCheckClaims` below
+  // already treats an empty array as truthy/present, which is correct; don't "fix" it.
+  factCheckClaims?: string[];
   factCheck?: FactCheckEntry[];
 }
 
@@ -32,8 +37,10 @@ export interface JobState {
 
 const JOB_TTL_SECONDS = 3600;
 
-// ~3x the slowest measured single stage (stress-test stage 2, ~38s, after the
-// stress-test/could-be-wrong split — see CLAUDE.md Session 8 addendum #2 follow-up).
+// ~3x the slowest measured single stage (stress-test stage 2, ~38-73s — see CLAUDE.md
+// Session 8 addendum #2/#3). The fact-check-extract/fact-check split (extract is fast;
+// verify is now capped by a per-claim research timeout) keeps that stage family well
+// under this threshold too, so it doesn't drive this number.
 const STALE_THRESHOLD_MS = 150_000;
 
 const STAGE_ORDER: StageName[] = [
@@ -41,6 +48,7 @@ const STAGE_ORDER: StageName[] = [
   "stress-test",
   "could-be-wrong",
   "devils-advocate",
+  "fact-check-extract",
   "fact-check",
 ];
 
@@ -81,7 +89,8 @@ function inferInFlightStage(results: JobResults): StageName {
   if (!results.stressTest) return STAGE_ORDER[1];
   if (!results.couldBeWrong) return STAGE_ORDER[2];
   if (!results.devilsAdvocateCase) return STAGE_ORDER[3];
-  return STAGE_ORDER[4];
+  if (!results.factCheckClaims) return STAGE_ORDER[4];
+  return STAGE_ORDER[5];
 }
 
 export function buildStaleFailure(job: JobState): JobState {

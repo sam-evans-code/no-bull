@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     name: "fact-check",
     nextPath: null,
     run: async (job) => ({
-      factCheck: await runFactCheck(job.results.stressTest, job.results.devilsAdvocateCase),
+      factCheck: await runFactCheck(job.results.factCheckClaims),
     }),
   });
 }

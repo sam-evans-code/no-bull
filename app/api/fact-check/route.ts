@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runFactCheck } from "@/lib/stages/fact-check";
+import { runFactCheckExtract, runFactCheck } from "@/lib/stages/fact-check";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
 
 export async function POST(request: Request) {
@@ -14,7 +14,8 @@ export async function POST(request: Request) {
   const devilsAdvocateCase = (body as { devilsAdvocateCase?: unknown })?.devilsAdvocateCase;
 
   try {
-    const factCheck = await runFactCheck(stressTest, devilsAdvocateCase);
+    const { claims } = await runFactCheckExtract(stressTest, devilsAdvocateCase);
+    const factCheck = await runFactCheck(claims);
     return NextResponse.json({ factCheck }, { status: 200 });
   } catch (error) {
     if (error instanceof StageValidationError) {
