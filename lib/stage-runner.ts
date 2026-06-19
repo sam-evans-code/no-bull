@@ -67,14 +67,32 @@ async function runStageWork(jobId: string, job: JobState, config: StageConfig, o
       await writeJob(jobId, job); // still "running"
       // Awaited, but the downstream route also acks-and-defers via this same function, so
       // this only waits for its fast ack — not its real work. That's what keeps this
-      // invocation's own duration from absorbing the next stage's.
-      await fetch(`${origin}${config.nextPath}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId }),
-      }).catch((err) =>
-        console.error(`[no-bull/run] failed to trigger ${config.nextPath} for job ${jobId}:`, err)
-      );
+      // invocation's own duration from absorbing the next stage's. Bounded with a timeout
+      // and an explicit ok-check: an unbounded/unchecked fetch here silently stalls the
+      // whole job with no thrown exception and no log line on either side of the hop —
+      // confirmed live (job stalled identically between devils-advocate and
+      // fact-check-extract even after fact-check-extract's own internal calls were already
+      // timeout-bounded), so the hang/bad-response is in this hop itself, not downstream.
+      try {
+        const response = await fetch(`${origin}${config.nextPath}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!response.ok) {
+          throw new Error(`trigger fetch to ${config.nextPath} returned HTTP ${response.status}`);
+        }
+      } catch (err) {
+        console.error(`[no-bull/run] failed to trigger ${config.nextPath} for job ${jobId}:`, err);
+        const latestOnFailure = await readJob(jobId);
+        if (latestOnFailure && latestOnFailure.status !== "failed") {
+          latestOnFailure.status = "failed";
+          latestOnFailure.failedAt = config.name;
+          latestOnFailure.error = GENERIC_ERROR_MESSAGE;
+          await writeJob(jobId, latestOnFailure);
+        }
+      }
     } else {
       job.status = "complete";
       await writeJob(jobId, job);
