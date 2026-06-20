@@ -178,14 +178,30 @@ export default function NoBullApp() {
     dispatch({ type: "CLARIFY_NEEDED", questions: clarify.questions });
   }
 
-  function handleClarifyAnswer(combinedInput: string) {
-    pendoTrackClient("clarify_resolved", { resolution: "answered" });
+  function handleClarifyAnswer(combinedInput: string, answeredCount: number) {
+    if (state.phase === "clarifying") {
+      pendoTrackClient("clarify_resolved", {
+        resolution: "answered",
+        questions_count: state.questions.length,
+        questions_answered_count: answeredCount,
+        original_input_length: state.input.length,
+        combined_input_length: combinedInput.length,
+      });
+    }
     dispatch({ type: "SUBMIT_START", input: combinedInput });
     void proceedToJob(combinedInput);
   }
 
   function handleClarifySkip(originalInput: string) {
-    pendoTrackClient("clarify_resolved", { resolution: "skipped" });
+    if (state.phase === "clarifying") {
+      pendoTrackClient("clarify_resolved", {
+        resolution: "skipped",
+        questions_count: state.questions.length,
+        questions_answered_count: 0,
+        original_input_length: state.input.length,
+        combined_input_length: originalInput.length,
+      });
+    }
     dispatch({ type: "SUBMIT_START", input: originalInput, skipWarning: true });
     void proceedToJob(originalInput);
   }

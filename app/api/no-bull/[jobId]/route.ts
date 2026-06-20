@@ -9,6 +9,7 @@ import {
   isStageInFlight,
 } from "@/lib/job-store";
 import { triggerStage } from "@/lib/stage-runner";
+import { pendoTrackServer } from "@/lib/pendo-server";
 
 export async function GET(request: Request, { params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await params;
@@ -19,6 +20,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
   if (isJobStale(job)) {
     const failedJob = buildStaleFailure(job);
     await writeJob(jobId, failedJob); // durably rewritten, not just presented-as-failed
+    await pendoTrackServer("stale_job_detected", {
+      stale_stage_name: failedJob.failedAt ?? "unknown",
+      time_since_last_update_ms: Date.now() - job.lastUpdatedAt,
+      stages_completed_count: Object.keys(job.results).length,
+      job_age_ms: Date.now() - job.createdAt,
+    });
     return NextResponse.json(failedJob, { status: 200 });
   }
 
