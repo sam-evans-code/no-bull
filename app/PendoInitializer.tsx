@@ -6,7 +6,7 @@ export default function PendoInitializer() {
   useEffect(() => {
     pendo.initialize({
       visitor: {
-        id: ''
+        id: 'anonymous'
       }
     });
   }, []);
