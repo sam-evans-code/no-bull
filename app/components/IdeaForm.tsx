@@ -53,16 +53,23 @@ export default function IdeaForm({
   // END JUDGE EXAMPLES — TEMPORARY
 
   return (
-    <section className="flex min-h-[70vh] flex-col items-center justify-center gap-8 text-center">
+    <section className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
       <div className="mx-auto flex max-w-[54rem] flex-col items-center gap-4">
-        <Image src={logo} alt="" width={96} height={96} className="h-24 w-24" priority />
-        <span className="font-mono text-lg font-semibold uppercase tracking-widest text-zinc-100">
+        <Image
+          src={logo}
+          alt=""
+          width={72}
+          height={72}
+          className="h-[4.5rem] w-[4.5rem]"
+          priority
+        />
+        <span className="font-mono text-base font-semibold uppercase tracking-widest text-zinc-100">
           No Bull
         </span>
-        <h1 className="text-3xl tracking-tight text-zinc-50 sm:text-4xl">
+        <h1 className="text-2xl tracking-tight text-zinc-50 sm:text-3xl">
           Your AI agrees with you. <span className="font-bold">That&rsquo;s a problem.</span>
         </h1>
-        <p className="text-lg text-zinc-300">
+        <p className="text-base text-zinc-300">
           AI tells you you&rsquo;re right 49% more often than a human would.{" "}
           <span className="font-semibold">Even when you&rsquo;re not.</span>{" "}
           <a
@@ -74,7 +81,7 @@ export default function IdeaForm({
             Science 2026
           </a>
         </p>
-        <p className="text-lg leading-relaxed text-zinc-300">
+        <p className="text-base leading-relaxed text-zinc-300">
           AI tools are built to keep you happy.{" "}
           <span className="font-semibold">
             No Bull is built to catch you out.
@@ -84,7 +91,7 @@ export default function IdeaForm({
           multiple counter-cases against your own idea, then sends the result
           to another LLM to fact-check.
         </p>
-        <p className="text-lg font-semibold text-zinc-300">No yes-men. No bull.</p>
+        <p className="text-base font-semibold text-zinc-300">No yes-men. No bull.</p>
       </div>
 
       <div className="flex w-full flex-col gap-3 text-left">
@@ -103,7 +110,7 @@ export default function IdeaForm({
             disabled={submitting}
             onChange={(e) => onChange(e.target.value)}
             placeholder="What strategies, ideas or decisions need stress-testing? Paste them in here before you share it with your team"
-            className="block w-full resize-none rounded-2xl border border-zinc-800 bg-zinc-900 p-4 pb-16 text-xl text-zinc-100 placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:bg-zinc-950"
+            className="block w-full resize-none rounded-2xl border border-zinc-800 bg-zinc-900 p-4 pb-16 text-lg text-zinc-100 placeholder:text-zinc-500 disabled:cursor-not-allowed disabled:bg-zinc-950"
           />
           <button
             type="button"

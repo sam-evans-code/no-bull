@@ -63,7 +63,8 @@ function validateStressTestInput(input: unknown): StressTestInput | null {
     isStringArray(candidate.counterHypotheses, 2) &&
     isNonEmptyString(candidate.baseRates) &&
     isNonEmptyString(candidate.falsePremiseCheck) &&
-    isNonEmptyString(candidate.conclusion)
+    isNonEmptyString(candidate.conclusion) &&
+    isStringArray(candidate.keyPoints, 2)
   ) {
     return candidate as unknown as StressTestInput;
   }
@@ -73,7 +74,11 @@ function validateStressTestInput(input: unknown): StressTestInput | null {
 function validateDevilsAdvocateCase(input: unknown): DevilsAdvocateCase | null {
   if (typeof input !== "object" || input === null) return null;
   const candidate = input as Record<string, unknown>;
-  if (isStringArray(candidate.keyArguments, 3) && isNonEmptyString(candidate.conclusion)) {
+  if (
+    isStringArray(candidate.keyArguments, 3) &&
+    isNonEmptyString(candidate.conclusion) &&
+    isStringArray(candidate.keyPoints, 2)
+  ) {
     return candidate as unknown as DevilsAdvocateCase;
   }
   return null;

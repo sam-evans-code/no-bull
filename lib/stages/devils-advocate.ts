@@ -15,14 +15,20 @@ export const DEVILS_ADVOCATE_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctio
           type: "array",
           items: { type: "string" },
           description:
-            "At least 3 distinct, evidence-style arguments against the idea. Each must be self-contained and name a concrete mechanism, risk, market dynamic, or historical analog — not a rephrasing of the stress-test findings it was given. Keep each argument to 1–2 sentences.",
+            "At least 3 distinct, evidence-style arguments against the idea. Each must be self-contained and name a concrete mechanism, risk, market dynamic, or historical analog — not a rephrasing of the stress-test findings it was given. Format each item as a single bold summary sentence wrapped in **double asterisks**, followed by up to one sentence of supporting detail. Keep each argument to at most 2 sentences total.",
         },
         conclusion: {
           type: "string",
           description: "1-2 sentence bottom-line: why the case against this idea is strong.",
         },
+        keyPoints: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "2-4 bullet points distilling this case's most important takeaways. Keep each item to 1-2 sentences. No bold formatting — this field is already the short version.",
+        },
       },
-      required: ["keyArguments", "conclusion"],
+      required: ["keyArguments", "conclusion", "keyPoints"],
       additionalProperties: false,
     },
   },
@@ -31,6 +37,8 @@ export const DEVILS_ADVOCATE_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctio
 export const DEVILS_ADVOCATE_SYSTEM_PROMPT = `You are a skeptical board member reviewing this decision. Your only job is to build the strongest possible case AGAINST it, using evidence-style reasoning — concrete mechanisms, risks, market dynamics, base rates, or historical analogs — not hedging, vague qualifiers, or restated weaknesses.
 
 You will be shown another analyst's stress-test findings; do not simply restate or summarize them — your case must introduce reasoning they didn't cover, argued as a genuine adversarial position, not a balanced second opinion. Do not soften claims with "might" or "could potentially" where a direct claim is warranted — if something is genuinely uncertain, say so plainly rather than hedging by default.
+
+Format each item in keyArguments as a bold one-sentence summary (wrapped in **double asterisks**) followed by up to one sentence of supporting detail. After keyArguments and conclusion, fill in keyPoints: 2-4 plain, non-bold bullet points (each 1-2 sentences) distilling the case into its most important takeaways.
 
 Be concise: state each argument in as few sentences as the mechanism requires. Do not pad with hedges, throat-clearing, or restated stress-test content — every sentence must introduce new reasoning.`;
 
@@ -41,11 +49,13 @@ export interface StressTestInput {
   baseRates: string;
   falsePremiseCheck: string;
   conclusion: string;
+  keyPoints: string[];
 }
 
 export interface DevilsAdvocateCase {
   keyArguments: string[];
   conclusion: string;
+  keyPoints: string[];
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -67,7 +77,8 @@ function validateStressTestInput(input: unknown): StressTestInput | null {
     isStringArray(candidate.counterHypotheses, 2) &&
     isNonEmptyString(candidate.baseRates) &&
     isNonEmptyString(candidate.falsePremiseCheck) &&
-    isNonEmptyString(candidate.conclusion)
+    isNonEmptyString(candidate.conclusion) &&
+    isStringArray(candidate.keyPoints, 2)
   ) {
     return candidate as unknown as StressTestInput;
   }
@@ -77,7 +88,11 @@ function validateStressTestInput(input: unknown): StressTestInput | null {
 function validateDevilsAdvocateCase(input: unknown): DevilsAdvocateCase | null {
   if (typeof input !== "object" || input === null) return null;
   const candidate = input as Record<string, unknown>;
-  if (isStringArray(candidate.keyArguments, 3) && isNonEmptyString(candidate.conclusion)) {
+  if (
+    isStringArray(candidate.keyArguments, 3) &&
+    isNonEmptyString(candidate.conclusion) &&
+    isStringArray(candidate.keyPoints, 2)
+  ) {
     return candidate as unknown as DevilsAdvocateCase;
   }
   return null;

@@ -13,8 +13,9 @@ const STRESS_TEST_TOOL: Anthropic.Tool = {
       baseRates: { type: "string" },
       falsePremiseCheck: { type: "string" },
       conclusion: { type: "string" },
+      keyPoints: { type: "array", items: { type: "string" } },
     },
-    required: ["counterHypotheses", "baseRates", "falsePremiseCheck", "conclusion"],
+    required: ["counterHypotheses", "baseRates", "falsePremiseCheck", "conclusion", "keyPoints"],
   },
 };
 
@@ -29,25 +30,32 @@ const COUNTER_EVIDENCE_TOOL: Anthropic.Tool = {
         type: "array",
         items: { type: "string" },
         description:
-          "At least 4 specific, self-contained items. Each must name a concrete weakness — under-weighted evidence, a dismissed alternative interpretation, a misapplied base rate, or an unverified assumption. Generic hedges do not count. Keep each item to 1–2 sentences.",
+          "At least 4 specific, self-contained items. Each must name a concrete weakness — under-weighted evidence, a dismissed alternative interpretation, a misapplied base rate, or an unverified assumption. Generic hedges do not count. Format each item as a single bold summary sentence wrapped in **double asterisks**, followed by up to one sentence of supporting detail. Keep each item to at most 2 sentences total.",
+      },
+      keyPoints: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "2-4 bullet points distilling the counterEvidence list above into its most important takeaways. Keep each item to 1-2 sentences. No bold formatting — this field is already the short version.",
       },
     },
-    required: ["counterEvidence"],
+    required: ["counterEvidence", "keyPoints"],
   },
 };
 
 const STRESS_TEST_SYSTEM_PROMPT = `You are a rigorous analyst stress-testing a question. You must call the submit_stress_test tool to respond. Fill in its fields in this exact order, treating each as a mandatory step that must be completed before the next:
 
-1. counterHypotheses — generate at least 2 genuinely distinct competing hypotheses for why the premise might not hold.
+1. counterHypotheses — generate at least 2 genuinely distinct competing hypotheses for why the premise might not hold. Format each as a bold one-sentence summary (wrapped in **double asterisks**) followed by up to one sentence of supporting detail.
 2. baseRates — reason explicitly about base rates / reference classes relevant to this question.
 3. falsePremiseCheck — check the question itself for false or shaky assumed premises.
 4. conclusion — only now, write the bottom-line analysis, and make sure it is actually consistent with what you wrote above rather than a generic take.
+5. keyPoints — only now, distill the analysis above into 2-4 bullet points, each 1-2 sentences. Write these as plain sentences with no bold formatting.
 
 Be concise: use as few sentences as accuracy requires. Do not restate the question, add throat-clearing ("it's worth noting", "it's important to consider"), or pad with generic caveats — every sentence must add new information.
 
 Do not skip ahead to a conclusion before completing the earlier fields.`;
 
-const COUNTER_EVIDENCE_FOLLOWUP = `Before treating the analysis above as final, list every specific way it could be wrong. Required: at least 4 distinct items. Each item must name a specific weakness — a piece of evidence that was under-weighted, an alternative interpretation that was dismissed too quickly, a base rate that was misapplied, or an assumption that hasn't been verified. A generic acknowledgment such as "this analysis could be wrong" or "more research is needed" does not count as an item and must not appear. Keep each item to 1–2 sentences. Call the submit_counter_evidence tool to respond.`;
+const COUNTER_EVIDENCE_FOLLOWUP = `Before treating the analysis above as final, list every specific way it could be wrong. Required: at least 4 distinct items. Each item must name a specific weakness — a piece of evidence that was under-weighted, an alternative interpretation that was dismissed too quickly, a base rate that was misapplied, or an assumption that hasn't been verified. A generic acknowledgment such as "this analysis could be wrong" or "more research is needed" does not count as an item and must not appear. Format each item as a bold one-sentence summary (wrapped in **double asterisks**) followed by up to one sentence of supporting detail, keeping each item to at most 2 sentences total. After the itemized list, also fill in keyPoints: 2-4 plain, non-bold bullet points (each 1-2 sentences) distilling the counter-evidence list into its most important takeaways. Call the submit_counter_evidence tool to respond.`;
 
 const STAGE3_ERROR_MESSAGE =
   "Something went wrong checking for blind spots — please try again.";
@@ -63,10 +71,12 @@ export interface StressTestInput {
   baseRates: string;
   falsePremiseCheck: string;
   conclusion: string;
+  keyPoints: string[];
 }
 
 export interface CounterEvidenceInput {
   counterEvidence: string[];
+  keyPoints: string[];
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -99,7 +109,8 @@ function validateStressTestInput(input: unknown): StressTestInput | null {
     isStringArray(candidate.counterHypotheses, 2) &&
     isNonEmptyString(candidate.baseRates) &&
     isNonEmptyString(candidate.falsePremiseCheck) &&
-    isNonEmptyString(candidate.conclusion)
+    isNonEmptyString(candidate.conclusion) &&
+    isStringArray(candidate.keyPoints, 2)
   ) {
     return candidate as unknown as StressTestInput;
   }
@@ -109,7 +120,7 @@ function validateStressTestInput(input: unknown): StressTestInput | null {
 function validateCounterEvidenceInput(input: unknown): CounterEvidenceInput | null {
   if (typeof input !== "object" || input === null) return null;
   const candidate = input as Record<string, unknown>;
-  if (isStringArray(candidate.counterEvidence, 4)) {
+  if (isStringArray(candidate.counterEvidence, 4) && isStringArray(candidate.keyPoints, 2)) {
     return candidate as unknown as CounterEvidenceInput;
   }
   return null;

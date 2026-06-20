@@ -57,6 +57,34 @@ function UnverifiableNote({ claims }: { claims: string[] }) {
   );
 }
 
+function BulletItem({ text }: { text: string }) {
+  const match = text.match(/^\*\*(.+?)\*\*\s*([\s\S]*)$/);
+  if (!match) return <li>{text}</li>;
+  const [, lead, rest] = match;
+  return (
+    <li>
+      <strong>{lead}</strong>
+      {rest && ` ${rest}`}
+    </li>
+  );
+}
+
+function KeyPoints({ points }: { points: string[] }) {
+  if (points.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-2xl font-semibold uppercase tracking-wide text-zinc-500">
+        Key Points
+      </p>
+      <ul className="list-disc pl-5 text-base text-zinc-100">
+        {points.map((point, i) => (
+          <li key={i}>{point}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function ResultsView({ results }: ResultsViewProps) {
   const stressTestCorrection = findCorrection(results.narrativeCorrections, "stress-test");
   const devilsAdvocateCorrection = findCorrection(
@@ -71,6 +99,14 @@ export default function ResultsView({ results }: ResultsViewProps) {
     (results.factCheck ?? [])
       .filter((entry) => entry.originStage === stage && entry.verdict === "UNVERIFIABLE")
       .map((entry) => entry.claim);
+
+  const factCheckCounts = results.factCheck
+    ? {
+        entailed: results.factCheck.filter((e) => e.verdict === "ENTAILED").length,
+        contradicted: results.factCheck.filter((e) => e.verdict === "CONTRADICTED").length,
+        unverifiable: results.factCheck.filter((e) => e.verdict === "UNVERIFIABLE").length,
+      }
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -101,13 +137,14 @@ export default function ResultsView({ results }: ResultsViewProps) {
           <div className="flex flex-col gap-3 text-base text-zinc-100">
             <ul className="list-disc pl-5">
               {stressTest.counterHypotheses.map((item, i) => (
-                <li key={i}>{item}</li>
+                <BulletItem key={i} text={item} />
               ))}
             </ul>
             <p>{stressTest.baseRates}</p>
             <p>{stressTest.falsePremiseCheck}</p>
             <p className="font-medium">{stressTest.conclusion}</p>
           </div>
+          <KeyPoints points={stressTest.keyPoints} />
           <UnverifiableNote claims={unverifiableByStage("stress-test")} />
         </details>
       )}
@@ -124,9 +161,10 @@ export default function ResultsView({ results }: ResultsViewProps) {
           </summary>
           <ul className="list-disc pl-5 text-base text-zinc-100">
             {results.couldBeWrong.counterEvidence.map((item, i) => (
-              <li key={i}>{item}</li>
+              <BulletItem key={i} text={item} />
             ))}
           </ul>
+          <KeyPoints points={results.couldBeWrong.keyPoints} />
         </details>
       )}
 
@@ -146,19 +184,27 @@ export default function ResultsView({ results }: ResultsViewProps) {
           )}
           <ul className="list-disc pl-5 text-base text-zinc-100">
             {devilsAdvocateCase.keyArguments.map((item, i) => (
-              <li key={i}>{item}</li>
+              <BulletItem key={i} text={item} />
             ))}
           </ul>
           <p className="font-medium text-zinc-100">{devilsAdvocateCase.conclusion}</p>
+          <KeyPoints points={devilsAdvocateCase.keyPoints} />
           <UnverifiableNote claims={unverifiableByStage("devils-advocate")} />
         </details>
       )}
 
-      {results.factCheck && (
-        <section className="flex flex-col gap-2">
-          <h2 className="font-mono text-sm font-semibold uppercase tracking-wide text-zinc-400">
-            Fact Check
-          </h2>
+      {results.factCheck && factCheckCounts && (
+        <details className="flex flex-col gap-2">
+          <summary className="cursor-pointer">
+            <span className="block font-mono text-sm font-semibold uppercase tracking-wide text-zinc-400">
+              Fact Check
+            </span>
+            <span className="mt-1 block text-xs font-normal text-zinc-400">
+              {results.factCheck.length === 0
+                ? "No checkable claims found"
+                : `${factCheckCounts.entailed} entailed · ${factCheckCounts.contradicted} contradicted · ${factCheckCounts.unverifiable} unverifiable`}
+            </span>
+          </summary>
           {results.factCheck.length === 0 ? (
             <p className="text-base text-zinc-300">
               No independently checkable factual claims were found in this
@@ -220,7 +266,7 @@ export default function ResultsView({ results }: ResultsViewProps) {
               </table>
             </div>
           )}
-        </section>
+        </details>
       )}
 
       {results.reframedQuestion && (

@@ -19,15 +19,18 @@ export interface StressTestResult {
   baseRates: string;
   falsePremiseCheck: string;
   conclusion: string;
+  keyPoints: string[];
 }
 
 export interface CounterEvidenceResult {
   counterEvidence: string[];
+  keyPoints: string[];
 }
 
 export interface DevilsAdvocateResult {
   keyArguments: string[];
   conclusion: string;
+  keyPoints: string[];
 }
 
 export interface ExtractedClaim {

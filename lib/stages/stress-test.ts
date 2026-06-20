@@ -13,7 +13,7 @@ export const STRESS_TEST_TOOL: Anthropic.Tool = {
         type: "array",
         items: { type: "string" },
         description:
-          "At least 2 distinct, substantive competing hypotheses or explanations for why the premise might not hold. Each must be genuinely different from the others, not a rephrasing. Keep each hypothesis to 1–2 sentences — name the mechanism, don't narrate it.",
+          "At least 2 distinct, substantive competing hypotheses or explanations for why the premise might not hold. Each must be genuinely different from the others, not a rephrasing. Format each item as a single bold summary sentence wrapped in **double asterisks**, followed by up to one sentence of supporting detail — e.g. \"**Customers may already expect periodic price rises.** Annual increases are standard in this market segment.\" Keep each hypothesis to at most 2 sentences total — name the mechanism, don't narrate it.",
       },
       baseRates: {
         type: "string",
@@ -30,17 +30,24 @@ export const STRESS_TEST_TOOL: Anthropic.Tool = {
         description:
           "The bottom-line analysis. Write this only after, and consistent with, counterHypotheses, baseRates, and falsePremiseCheck above. Keep this to 2–3 sentences.",
       },
+      keyPoints: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "2-4 bullet points distilling this analysis' most important takeaways for someone who won't read the full text above. Keep each item to 1-2 sentences. No bold formatting — this field is already the short version.",
+      },
     },
-    required: ["counterHypotheses", "baseRates", "falsePremiseCheck", "conclusion"],
+    required: ["counterHypotheses", "baseRates", "falsePremiseCheck", "conclusion", "keyPoints"],
   },
 };
 
 export const STRESS_TEST_SYSTEM_PROMPT = `You are a rigorous analyst stress-testing a question. You must call the submit_stress_test tool to respond. Fill in its fields in this exact order, treating each as a mandatory step that must be completed before the next:
 
-1. counterHypotheses — generate at least 2 genuinely distinct competing hypotheses for why the premise might not hold.
+1. counterHypotheses — generate at least 2 genuinely distinct competing hypotheses for why the premise might not hold. Format each as a bold one-sentence summary (wrapped in **double asterisks**) followed by up to one sentence of supporting detail.
 2. baseRates — reason explicitly about base rates / reference classes relevant to this question.
 3. falsePremiseCheck — check the question itself for false or shaky assumed premises.
 4. conclusion — only now, write the bottom-line analysis, and make sure it is actually consistent with what you wrote above rather than a generic take.
+5. keyPoints — only now, distill the analysis above into 2-4 bullet points, each 1-2 sentences. Write these as plain sentences with no bold formatting.
 
 Be concise: use as few sentences as accuracy requires. Do not restate the question, add throat-clearing ("it's worth noting", "it's important to consider"), or pad with generic caveats — every sentence must add new information.
 
@@ -54,6 +61,7 @@ export interface StressTestInput {
   baseRates: string;
   falsePremiseCheck: string;
   conclusion: string;
+  keyPoints: string[];
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -86,7 +94,8 @@ function validateStressTestInput(input: unknown): StressTestInput | null {
     isStringArray(candidate.counterHypotheses, 2) &&
     isNonEmptyString(candidate.baseRates) &&
     isNonEmptyString(candidate.falsePremiseCheck) &&
-    isNonEmptyString(candidate.conclusion)
+    isNonEmptyString(candidate.conclusion) &&
+    isStringArray(candidate.keyPoints, 2)
   ) {
     return candidate as unknown as StressTestInput;
   }
