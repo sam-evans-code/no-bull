@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { getOpenAIClient } from "@/lib/openai";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
+import { pendoTrackServer } from "@/lib/pendo-server";
 
 export const DEVILS_ADVOCATE_TOOL: OpenAI.Chat.Completions.ChatCompletionFunctionTool = {
   type: "function",
@@ -131,6 +132,7 @@ export async function runDevilsAdvocate(
     );
   }
 
+  const startTime = Date.now();
   const openai = getOpenAIClient();
 
   let completion: OpenAI.Chat.Completions.ChatCompletion;
@@ -176,6 +178,13 @@ export async function runDevilsAdvocate(
     );
     throw new StageApiError(ERROR_MESSAGE);
   }
+
+  await pendoTrackServer("devils_advocate_completed", {
+    key_arguments_count: devilsAdvocateCase.keyArguments.length,
+    conclusion_length: devilsAdvocateCase.conclusion.length,
+    key_points_count: devilsAdvocateCase.keyPoints.length,
+    duration_ms: Date.now() - startTime,
+  });
 
   return devilsAdvocateCase;
 }

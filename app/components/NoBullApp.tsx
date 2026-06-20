@@ -363,7 +363,15 @@ export default function NoBullApp() {
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
           <button
             type="button"
-            onClick={() => handleSubmit(state.failedInput)}
+            onClick={() => {
+              pendoTrackClient("analysis_retried", {
+                previous_failed_stage: state.failedAt ?? "unknown",
+                previous_error_type: "pipeline_error",
+                previous_duration_ms: state.durationMs,
+                retry_source: "failed",
+              });
+              handleSubmit(state.failedInput);
+            }}
             className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-medium text-white"
           >
             Try again
@@ -403,7 +411,15 @@ export default function NoBullApp() {
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
         <button
           type="button"
-          onClick={() => handleSubmit(state.failedInput)}
+          onClick={() => {
+            pendoTrackClient("analysis_retried", {
+              previous_failed_stage: "unknown",
+              previous_error_type: "job_expired",
+              previous_duration_ms: state.durationMs,
+              retry_source: "expired",
+            });
+            handleSubmit(state.failedInput);
+          }}
           className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-medium text-white"
         >
           Try again

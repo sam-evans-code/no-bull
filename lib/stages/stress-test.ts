@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropicClient } from "@/lib/anthropic";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
+import { pendoTrackServer } from "@/lib/pendo-server";
 
 export const STRESS_TEST_TOOL: Anthropic.Tool = {
   name: "submit_stress_test",
@@ -111,6 +112,7 @@ export async function runStressTestAnalysis(reframedQuestion: unknown): Promise<
     throw new StageValidationError('"reframedQuestion" must not be empty');
   }
 
+  const startTime = Date.now();
   const anthropic = getAnthropicClient();
   const trimmedQuestion = reframedQuestion.trim();
 
@@ -143,6 +145,13 @@ export async function runStressTestAnalysis(reframedQuestion: unknown): Promise<
     );
     throw new StageApiError(STAGE2_ERROR_MESSAGE);
   }
+
+  await pendoTrackServer("stress_test_completed", {
+    counter_hypotheses_count: stressTest.counterHypotheses.length,
+    conclusion_length: stressTest.conclusion.length,
+    key_points_count: stressTest.keyPoints.length,
+    duration_ms: Date.now() - startTime,
+  });
 
   return stressTest;
 }

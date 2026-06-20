@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropicClient } from "@/lib/anthropic";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
+import { pendoTrackServer } from "@/lib/pendo-server";
 
 const STRESS_TEST_TOOL: Anthropic.Tool = {
   name: "submit_stress_test",
@@ -143,6 +144,7 @@ export async function runCouldBeWrong(
     );
   }
 
+  const startTime = Date.now();
   const anthropic = getAnthropicClient();
   const trimmedQuestion = reframedQuestion.trim();
 
@@ -199,6 +201,12 @@ export async function runCouldBeWrong(
     );
     throw new StageApiError(STAGE3_ERROR_MESSAGE);
   }
+
+  await pendoTrackServer("could_be_wrong_completed", {
+    counter_evidence_count: couldBeWrong.counterEvidence.length,
+    key_points_count: couldBeWrong.keyPoints.length,
+    duration_ms: Date.now() - startTime,
+  });
 
   return couldBeWrong;
 }

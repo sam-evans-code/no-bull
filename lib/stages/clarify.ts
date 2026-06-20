@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAnthropicClient } from "@/lib/anthropic";
 import { StageValidationError } from "@/lib/stage-errors";
+import { pendoTrackServer } from "@/lib/pendo-server";
 
 const MAX_QUESTIONS = 3;
 
@@ -105,6 +106,7 @@ export async function runClarify(input: unknown): Promise<ClarifyResult> {
     throw new StageValidationError('"input" must not be empty');
   }
 
+  const startTime = Date.now();
   const anthropic = getAnthropicClient();
   const trimmedInput = input.trim();
 
@@ -126,6 +128,13 @@ export async function runClarify(input: unknown): Promise<ClarifyResult> {
     );
   } catch (error) {
     console.error("[clarify] Anthropic call failed — failing open:", error);
+    await pendoTrackServer("clarify_check_completed", {
+      is_specific_enough: true,
+      question_count: 0,
+      was_fail_open: true,
+      duration_ms: Date.now() - startTime,
+      input_length: trimmedInput.length,
+    });
     return FAIL_OPEN_RESULT;
   }
 
@@ -141,8 +150,23 @@ export async function runClarify(input: unknown): Promise<ClarifyResult> {
       "[clarify] Anthropic returned an unusable tool call — failing open:",
       JSON.stringify(message.content)
     );
+    await pendoTrackServer("clarify_check_completed", {
+      is_specific_enough: true,
+      question_count: 0,
+      was_fail_open: true,
+      duration_ms: Date.now() - startTime,
+      input_length: trimmedInput.length,
+    });
     return FAIL_OPEN_RESULT;
   }
+
+  await pendoTrackServer("clarify_check_completed", {
+    is_specific_enough: result.isSpecificEnough,
+    question_count: result.questions.length,
+    was_fail_open: false,
+    duration_ms: Date.now() - startTime,
+    input_length: trimmedInput.length,
+  });
 
   return result;
 }
