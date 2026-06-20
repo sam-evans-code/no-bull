@@ -100,6 +100,14 @@ async function runStageWork(jobId: string, job: JobState, config: StageConfig): 
       job.status = "complete";
       await writeJob(jobId, job);
       console.log(`[no-bull/run] job ${jobId} complete`);
+      const factCheck = job.results.factCheck ?? [];
+      await pendoTrackServer("pipeline_completed", {
+        job_id: jobId,
+        total_stages_completed: Object.keys(job.results).length,
+        total_pipeline_duration_ms: Date.now() - job.createdAt,
+        had_narrative_corrections: (job.results.narrativeCorrections ?? []).length > 0,
+        had_contradicted_claims: factCheck.some((e) => e.verdict === "CONTRADICTED"),
+      });
     } else {
       // Stays "running" with the new results written. The next poll will see this stage's
       // output and trigger whatever comes next — see triggerStage above.

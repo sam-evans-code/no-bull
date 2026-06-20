@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { after } from "next/server";
 import { createJob, STAGE_ORDER } from "@/lib/job-store";
 import { triggerStage } from "@/lib/stage-runner";
+import { pendoTrackServer } from "@/lib/pendo-server";
 
 const MAX_INPUT_LENGTH = 4000; // kept in sync with app/components/IdeaForm.tsx
 
@@ -24,6 +25,12 @@ export async function POST(request: Request) {
 
   const { jobId } = await createJob(input);
   const origin = new URL(request.url).origin;
+
+  await pendoTrackServer("job_created", {
+    job_id: jobId,
+    input_length: input.length,
+    input_word_count: input.trim().split(/\s+/).filter(Boolean).length,
+  });
 
   after(() => triggerStage(jobId, STAGE_ORDER[0], origin));
 
