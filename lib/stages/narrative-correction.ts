@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { getAnthropicClient } from "@/lib/anthropic";
 import { getOpenAIClient } from "@/lib/openai";
 import { StageApiError } from "@/lib/stage-errors";
+import { pendoTrackServer } from "@/lib/pendo-server";
 import {
   STRESS_TEST_TOOL,
   STRESS_TEST_SYSTEM_PROMPT,
@@ -244,10 +245,19 @@ async function reviseDevilsAdvocate(
 export async function runNarrativeCorrection(
   job: JobState
 ): Promise<{ narrativeCorrections: NarrativeCorrection[] }> {
+  const startTime = Date.now();
   const factCheck = job.results.factCheck ?? [];
   const contradicted = factCheck.filter((entry) => entry.verdict === "CONTRADICTED");
 
   if (contradicted.length === 0) {
+    await pendoTrackServer("narrative_correction_completed", {
+      corrections_count: 0,
+      corrected_stages: "",
+      total_triggering_claims: 0,
+      stress_test_corrected: false,
+      devils_advocate_corrected: false,
+      duration_ms: Date.now() - startTime,
+    });
     return { narrativeCorrections: [] };
   }
 
@@ -288,6 +298,17 @@ export async function runNarrativeCorrection(
       revised,
     });
   }
+
+  const stressTestCorrected = corrections.some((c) => c.stage === "stress-test");
+  const devilsAdvocateCorrected = corrections.some((c) => c.stage === "devils-advocate");
+  await pendoTrackServer("narrative_correction_completed", {
+    corrections_count: corrections.length,
+    corrected_stages: corrections.map((c) => c.stage).join(","),
+    total_triggering_claims: corrections.reduce((sum, c) => sum + c.triggeringClaims.length, 0),
+    stress_test_corrected: stressTestCorrected,
+    devils_advocate_corrected: devilsAdvocateCorrected,
+    duration_ms: Date.now() - startTime,
+  });
 
   return { narrativeCorrections: corrections };
 }
