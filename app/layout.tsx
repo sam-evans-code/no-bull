@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "No Bull",
+  title: "No Bull AI",
   description: "Stress-test your decisions and ideas against reality, not a yes-man.",
 };
 

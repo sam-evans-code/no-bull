@@ -64,7 +64,7 @@ export default function IdeaForm({
           priority
         />
         <span className="font-mono text-base font-semibold uppercase tracking-widest text-zinc-100">
-          No Bull
+          No Bull AI
         </span>
         <h1 className="text-2xl tracking-tight text-zinc-50 sm:text-3xl">
           Your AI agrees with you. <span className="font-bold">That&rsquo;s a problem.</span>
