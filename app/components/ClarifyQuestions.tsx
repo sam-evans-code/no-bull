@@ -5,7 +5,7 @@ import { useState } from "react";
 interface ClarifyQuestionsProps {
   originalInput: string;
   questions: string[];
-  onAnswerAndContinue: (combinedInput: string) => void;
+  onAnswerAndContinue: (combinedInput: string, answeredCount: number) => void;
   onSkipAnyway: () => void;
   onBack: () => void;
 }
@@ -39,7 +39,8 @@ export default function ClarifyQuestions({
   }
 
   function handleContinue() {
-    onAnswerAndContinue(buildCombinedInput(originalInput, questions, answers));
+    const answeredCount = answers.filter((a) => a.trim().length > 0).length;
+    onAnswerAndContinue(buildCombinedInput(originalInput, questions, answers), answeredCount);
   }
 
   return (

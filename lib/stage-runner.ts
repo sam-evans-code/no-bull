@@ -1,6 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { readJob, writeJob, type JobState, type JobResults, type StageName } from "@/lib/job-store";
 import { StageApiError, StageValidationError } from "@/lib/stage-errors";
+import { pendoTrackServer } from "@/lib/pendo-server";
 
 const GENERIC_ERROR_MESSAGE = "Something went wrong running the pipeline — please try again.";
 
@@ -79,8 +80,8 @@ export async function handleStageRequest(request: Request, config: StageConfig):
 }
 
 async function runStageWork(jobId: string, job: JobState, config: StageConfig): Promise<void> {
+  const stageStart = Date.now();
   try {
-    const stageStart = Date.now();
     const partial = await config.run(job);
     Object.assign(job.results, partial);
     console.log(`[no-bull/run] ${config.name} took ${Date.now() - stageStart}ms`);
@@ -110,6 +111,12 @@ async function runStageWork(jobId: string, job: JobState, config: StageConfig): 
       return; // same race guard on the failure path
     }
     console.error(`[no-bull/run] job ${jobId} failed at ${config.name}:`, error);
+    const errorType =
+      error instanceof StageValidationError
+        ? "validation_error"
+        : error instanceof StageApiError
+          ? "api_error"
+          : "unexpected";
     job.status = "failed";
     job.failedAt = config.name;
     job.error =
@@ -117,5 +124,12 @@ async function runStageWork(jobId: string, job: JobState, config: StageConfig): 
         ? error.message
         : GENERIC_ERROR_MESSAGE;
     await writeJob(jobId, job);
+    await pendoTrackServer("pipeline_stage_failed", {
+      stage_name: config.name,
+      error_type: errorType,
+      error_message: (error instanceof Error ? error.message : String(error)).slice(0, 200),
+      stage_duration_ms: Date.now() - stageStart,
+      stages_completed_before: Object.keys(job.results).length,
+    });
   }
 }
