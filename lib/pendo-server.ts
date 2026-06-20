@@ -1,5 +1,5 @@
 const PENDO_TRACK_URL = "https://data.pendo.io/data/track";
-const PENDO_INTEGRATION_KEY = "8cff7079-46db-4d18-8282-f212ba05e105";
+const PENDO_INTEGRATION_KEY = process.env.PENDO_INTEGRATION_KEY;
 
 export async function pendoTrackServer(
   event: string,
@@ -7,6 +7,10 @@ export async function pendoTrackServer(
   visitorId = "anonymous",
   accountId = "anonymous"
 ): Promise<void> {
+  if (!PENDO_INTEGRATION_KEY) {
+    console.error("[Pendo] PENDO_INTEGRATION_KEY is not set — skipping track event:", event);
+    return;
+  }
   try {
     await fetch(PENDO_TRACK_URL, {
       method: "POST",

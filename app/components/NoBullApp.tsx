@@ -25,15 +25,16 @@ type FlowState =
       pollingStartedAt: number;
       pollFailures: number;
     }
-  | { phase: "complete"; results: JobResults }
+  | { phase: "complete"; results: JobResults; durationMs: number }
   | {
       phase: "failed";
       failedInput: string;
       error: string;
       failedAt?: StageName;
       results: JobResults;
+      durationMs: number;
     }
-  | { phase: "expired"; failedInput: string; results: JobResults };
+  | { phase: "expired"; failedInput: string; results: JobResults; durationMs: number };
 
 type Action =
   | { type: "INPUT_CHANGE"; text: string }
@@ -85,7 +86,11 @@ function reducer(state: FlowState, action: Action): FlowState {
       if (state.phase !== "polling") return state;
       const { job } = action;
       if (job.status === "complete") {
-        return { phase: "complete", results: job.results };
+        return {
+          phase: "complete",
+          results: job.results,
+          durationMs: Date.now() - state.pollingStartedAt,
+        };
       }
       if (job.status === "failed") {
         return {
@@ -94,6 +99,7 @@ function reducer(state: FlowState, action: Action): FlowState {
           error: job.error ?? "Something went wrong — please try again.",
           failedAt: job.failedAt,
           results: job.results,
+          durationMs: Date.now() - state.pollingStartedAt,
         };
       }
       return { ...state, results: job.results, pollFailures: 0 };
@@ -101,7 +107,12 @@ function reducer(state: FlowState, action: Action): FlowState {
 
     case "POLL_NOT_FOUND": {
       if (state.phase !== "polling") return state;
-      return { phase: "expired", failedInput: state.input, results: state.results };
+      return {
+        phase: "expired",
+        failedInput: state.input,
+        results: state.results,
+        durationMs: Date.now() - state.pollingStartedAt,
+      };
     }
 
     case "POLL_ERROR": {
@@ -113,6 +124,7 @@ function reducer(state: FlowState, action: Action): FlowState {
           failedInput: state.input,
           error: "We lost connection while checking on this run — please try again.",
           results: state.results,
+          durationMs: Date.now() - state.pollingStartedAt,
         };
       }
       return { ...state, pollFailures };
@@ -178,9 +190,14 @@ export default function NoBullApp() {
     void proceedToJob(originalInput);
   }
 
-  function handleReset(previousPhase: FlowState["phase"]) {
+  function handleReset() {
+    const previousDurationMs =
+      state.phase === "complete" || state.phase === "failed" || state.phase === "expired"
+        ? state.durationMs
+        : 0;
     pendoTrackClient("new_analysis_requested", {
-      previous_analysis_completed: previousPhase === "complete",
+      previous_analysis_completed: state.phase === "complete",
+      previous_analysis_duration_ms: previousDurationMs,
     });
     dispatch({ type: "RESET" });
   }
@@ -226,6 +243,13 @@ export default function NoBullApp() {
         }
         dispatch({ type: "POLL_OK", job });
       } else if (result.kind === "not-found") {
+        pendoTrackClient("analysis_failed", {
+          failed_stage_name: "unknown",
+          failed_stage_number: 0,
+          error_type: "job_expired",
+          stages_completed_count: latestStagesCompletedCount,
+          duration_before_failure_ms: Date.now() - pollingStartedAt,
+        });
         dispatch({ type: "POLL_NOT_FOUND" });
       } else {
         consecutiveFailures += 1;
@@ -305,7 +329,7 @@ export default function NoBullApp() {
         <ResultsView results={state.results} />
         <button
           type="button"
-          onClick={() => handleReset(state.phase)}
+          onClick={() => handleReset()}
           className="self-start text-sm font-medium text-zinc-400 underline"
         >
           Try another idea
@@ -346,7 +370,7 @@ export default function NoBullApp() {
           </button>
           <button
             type="button"
-            onClick={() => handleReset(state.phase)}
+            onClick={() => handleReset()}
             className="text-sm font-medium text-zinc-400 underline"
           >
             Try another idea
@@ -386,7 +410,7 @@ export default function NoBullApp() {
         </button>
         <button
           type="button"
-          onClick={() => handleReset(state.phase)}
+          onClick={() => handleReset()}
           className="text-sm font-medium text-zinc-400 underline"
         >
           Try another idea
